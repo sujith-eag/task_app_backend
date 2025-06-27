@@ -5,10 +5,12 @@ import { text } from 'express';
 
 const getTasks = asyncHandler( async (req, res)=>{
     
-    const tasks = await taskModel.find();
+    const tasks = await taskModel.find( {user: req.user.id } );
     res.status(200).json(tasks);
     // res.status(200).json({message: 'Get these messages also'});
 })
+
+
 
 const setTasks = asyncHandler( async (req, res)=>{
     
@@ -16,10 +18,13 @@ const setTasks = asyncHandler( async (req, res)=>{
         res.status(400)
         throw new Error('Please enter a task');
     }
-    const task = await taskModel.create({ text: req.body.text })
+    const task = await taskModel.create({ text: req.body.text, user: req.user.id })
     res.status(200).json(task);
     // res.status(200).json({message: 'Creating a Task'});
 } )
+
+
+import User from '../models/userModel.js'
 
 const updateTasks = asyncHandler(async (req, res)=>{
     const task = await taskModel.findById(req.params.id)
@@ -27,11 +32,26 @@ const updateTasks = asyncHandler(async (req, res)=>{
         res.status(400)
         throw new Error('Task not found')
     }
-        const updatedTask = await taskModel.findByIdAndUpdate(req.params.id, req.body, { new: true })
-        res.status(200).json(updatedTask) 
     
+    const user = await User.findById(req.user.id)
+    
+    if(!user){
+        res.status(401);
+        throw new Error('No such User found');
+    }
+    
+    if (task.user.toString() != user.id) {
+        res.status(401)
+        throw new Error('User is not authorized to update')
+    }
+    
+    const updatedTask = await taskModel.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    res.status(200).json(updatedTask) 
     // res.status(200).json({message: `Task ${req.params.id} Updated`});
 } )
+
+
+
 
 const deleteTasks = asyncHandler ( async (req, res)=>{
     
@@ -40,6 +60,18 @@ const deleteTasks = asyncHandler ( async (req, res)=>{
         res.status(400)
         throw new Error('Task not found')
     }
+    const user = await User.findById(req.user.id)
+    
+    if(!user){
+        res.status(401);
+        throw new Error('No such User found');
+    }
+    
+    if (task.user.toString() != user.id) {
+        res.status(401)
+        throw new Error('User is not authorized to delete')
+    }
+
     await taskModel.findByIdAndDelete(req.params.id)
     res.status(200).json({ id: req.params.id })
     // res.status(200).json({message: `Task ${req.params.id} is deleted.`});
