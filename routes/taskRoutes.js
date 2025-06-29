@@ -1,8 +1,10 @@
 import express from 'express';
+const router = express.Router();
+
 import protect from '../middleware/authMiddleware.js';
+
 import { getTasks, setTasks, deleteTasks, updateTasks} from '../controllers/taskController.js';
 
-const router = express.Router();
 
 router.get('/', protect, getTasks);
 
