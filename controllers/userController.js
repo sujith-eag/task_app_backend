@@ -1,39 +1,57 @@
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-
-import crypto from 'crypto'; // Import crypto for generating reset tokens
+import crypto from 'crypto'; // For generating reset tokens
+import Joi from 'joi';
 
 import User from '../models/userModel.js';
 
-// Note: For a real application, you would set up an email utility
-// import sendEmail from '../utils/sendEmail.js';
+// JWT Helper Functio
+const generateJWTtoken = (id) => {
+    return jwt.sign( { id }, process.env.JWT_SECRET, 
+            { expiresIn: '3d' });
+    }
 
-const generateJWTtoken = id => jwt.sign(
-    { id },
-    process.env.JWT_SECRET,
-    { expiresIn: '5d' }
-);
+// Joi Schema
+const registerSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(50).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().pattern(
+      new RegExp(
+        '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$'
+      )).required(),
+});
 
+const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().required(),
+});
 
 
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
-const registerUser = asyncHandler(async (req, res) => {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
+export const registerUser = asyncHandler(async (req, res) => {
+    
+    // Validate first
+    const { error, value } = registerSchema.validate(req.body);
+    if(error){
+        console.error('Joi Validation Error:', error.details);
         res.status(400);
-        throw new Error('All fields are mandatory');
+        // throw new Error ('Invalid input data');
+        throw new Error(error.details[0].message);
     }
+    
+    const { name, email, password } = value;
 
+    // Checking for existing user
     const userExists = await User.findOne({ email });
     if (userExists) {
         res.status(400);
-        throw new Error('User already exists');
+        throw new Error('Unable to register user'); // Not revealing user exists
     }
 
+    // Hashing Password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -48,19 +66,28 @@ const registerUser = asyncHandler(async (req, res) => {
             _id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role, // Include role in the response
+            role: user.role,
             token: generateJWTtoken(user._id)
         });
     } else {
         res.status(400);
-        throw new Error('Invalid user data');
+        throw new Error('Unable to register user');
     }
 });
+
+
 
 // @desc    Authenticate a user
 // @route   POST /api/users/login
 // @access  Public
-const loginUser = asyncHandler(async (req, res) => {
+export const loginUser = asyncHandler(async (req, res) => {
+
+    const { error, value } = loginSchema.validate(req.body);
+        if (error) {
+            res.status(400);
+            throw new Error('Invalid credentials');
+        }
+        
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
@@ -69,7 +96,7 @@ const loginUser = asyncHandler(async (req, res) => {
             _id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role, // Include role in the response
+            role: user.role,
             token: generateJWTtoken(user._id)
         });
     } else {
@@ -78,54 +105,67 @@ const loginUser = asyncHandler(async (req, res) => {
     }
 });
 
+
+
 // @desc    Get current user data
 // @route   GET /api/users/current
 // @access  Private
-const getCurrentUser = asyncHandler(async (req, res) => {
-    // req.user is populated by the 'protect' middleware
+export const getCurrentUser = asyncHandler(async (req, res) => {
+    // req.user is set by the 'protect' middleware
+
+//   const { _id, name, email } = await User.findById(req.user.id);
+
     res.status(200).json({
         id: req.user._id,
         name: req.user.name,
         email: req.user.email,
-        role: req.user.role // Include role in the response
+        role: req.user.role
     });
 });
+
 
 // --- PASSWORD RESET CONTROLLERS ---
 
 // @desc    Forgot password - generates token
 // @route   POST /api/users/forgotpassword
 // @access  Public
-const forgotPassword = asyncHandler(async (req, res) => {
+export const forgotPassword = asyncHandler(async (req, res) => {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
     if (!user) {
-        res.status(404);
-        throw new Error('No user found with that email');
+    // Always respond the same to prevent enumeration
+        res.status(200).json({ message: 'If this email exists, a reset link has been sent' });
+        return;
+        // res.status(404);
+        // throw new Error('No user found with that email');
     }
 
-    // 1. Generate a random reset token
+    // Generate a random reset token
     const resetToken = crypto.randomBytes(20).toString('hex');
 
-    // 2. Hash the token and save it to the user model
+    // Hash token to store in DB
     user.passwordResetToken = crypto
         .createHash('sha256')
         .update(resetToken)
         .digest('hex');
 
-    // 3. Set an expiration time (e.g., 10 minutes)
-    user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
+    // Set an expiration time
+    user.passwordResetExpires = Date.now() + 10 * 60 * 1000;  // 10 minutes
+    await user.save({ validateBeforeSave: false });
 
-    // 4. Send the (unhashed) token back to the user
-    // In a real app, you would create a reset URL and email it to the user.
+    
+// Send the (unhashed) token back to the user
+    // Create a reset URL and email it to the user.
     // const resetUrl = `${req.protocol}://${req.get('host')}/resetpassword/${resetToken}`;
     // await sendEmail({ email: user.email, subject: 'Password Reset', message: `Reset URL: ${resetUrl}` });
 
+    
+//   res.status(200).json({ 
+//      message: 'If this email exists, a reset link has been sent' });
     res.status(200).json({
         success: true,
-        message: 'Token sent to email (for demo, token is returned here)',
+        message: 'Token Not sent to email (for demo, token is returned here)',
         resetToken // For testing purposes; remove in production
     });
 });
@@ -135,14 +175,15 @@ const forgotPassword = asyncHandler(async (req, res) => {
 // @desc    Reset password using token
 // @route   PUT /api/users/resetpassword/:resettoken
 // @access  Public
-const resetPassword = asyncHandler(async (req, res) => {
-    // 1. Hash the token from the URL
+export const resetPassword = asyncHandler(async (req, res) => {
+
+    // Hash the token from the URL
     const passwordResetToken = crypto
         .createHash('sha256')
         .update(req.params.resettoken)
         .digest('hex');
 
-    // 2. Find the user with the matching token that has not expired
+    // Find the user with the matching token that has not expired
     const user = await User.findOne({
         passwordResetToken,
         passwordResetExpires: { $gt: Date.now() }
@@ -153,26 +194,26 @@ const resetPassword = asyncHandler(async (req, res) => {
         throw new Error('Invalid token or token has expired');
     }
 
-    // 3. Hash the new password and update the user
+    
+    // Enforce same password regex
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(req.body.password)) {
+        res.status(400);
+        throw new Error('Password does not meet security requirements');
+    }
+    
+  // Hash new password and update the user
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(req.body.password, salt);
 
-    // 4. Clear the reset token fields for security
+    // Clear the reset token fields for security
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
 
     res.status(200).json({
         success: true,
-        message: 'Password reset successfully'
+        message: 'Password reset successful'
     });
 });
 
-
-export {
-    registerUser,
-    loginUser,
-    getCurrentUser,
-    forgotPassword,
-    resetPassword
-};

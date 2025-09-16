@@ -1,28 +1,25 @@
 import asyncHandler from 'express-async-handler';
 import Task from '../models/taskModel.js';
-import User from '../models/userModel.js';
 
 
 // @desc    Get tasks with filtering and sorting
 // @route   GET /api/tasks
 // @access  Private
-const getTasks = asyncHandler(async (req, res) => {
-  
+export const getTasks = asyncHandler(async (req, res) => {
+
   // Basic filter to get tasks only for the logged-in user
   const filter = { user: req.user.id };
-
+  const { status, priority, sortBy = 'createdAt:desc' } = req.query;
+  
   // Add status and priority filters if they exist in query
-  if (req.query.status) {
-    filter.status = req.query.status;
-  }
-  if (req.query.priority) {
-    filter.priority = req.query.priority;
-  }
+  if (status) filter.status = status;
+  if (priority) filter.priority = priority;
+
   // Basic sorting (e.g., ?sortBy=dueDate:desc)
   let sort = {};
-  if (req.query.sortBy) {
-    const parts = req.query.sortBy.split(':');
-    sort[parts[0]] = parts[1] === 'desc' ? -1 : 1;
+  if (sortBy) {
+    const [field, order] = sortBy.split(':');
+    sort[field] = order === 'asc' ? 1 : -1;
   } else {
     sort = { createdAt: -1 }; // Default sort by creation date
   }
@@ -36,22 +33,24 @@ const getTasks = asyncHandler(async (req, res) => {
 // @desc    Set a new task
 // @route   POST /api/tasks
 // @access  Private
-const setTasks = asyncHandler(async (req, res) => {
-  // The required field is now 'title', not 'text'
-  if (!req.body.title) {
+export const createTask = asyncHandler(async (req, res) => {
+
+  const { title, description, dueDate, priority, status, tags } = req.body;
+
+  if (!title) {
     res.status(400);
-    throw new Error('Please enter a title for the task');
+    throw new Error('Title is required for the task');
   }
 
   // Create task with all the new fields from the request body
   const task = await Task.create({
     user: req.user.id,
-    title: req.body.title,
-    description: req.body.description,
-    dueDate: req.body.dueDate,
-    priority: req.body.priority,
-    status: req.body.status,
-    tags: req.body.tags,
+    title,      // not optional, so
+    description,
+    dueDate,
+    priority,
+    status,
+    tags,
   });
 
   res.status(201).json(task); // 201 for resource creation
@@ -63,7 +62,7 @@ const setTasks = asyncHandler(async (req, res) => {
 // @desc    Update a task
 // @route   PUT /api/tasks/:id
 // @access  Private
-const updateTasks = asyncHandler(async (req, res) => {
+export const updateTask = asyncHandler(async (req, res) => {
   const task = await Task.findById(req.params.id);
 
   if (!task) {
@@ -73,7 +72,7 @@ const updateTasks = asyncHandler(async (req, res) => {
 
   // req.user.id is available from the 'protect' middleware
   if (task.user.toString() !== req.user.id) {
-    res.status(401);
+    res.status(403);
     throw new Error('User not authorized');
   }
 
@@ -83,11 +82,10 @@ const updateTasks = asyncHandler(async (req, res) => {
 
 
 
-
 // @desc    Delete a task
 // @route   DELETE /api/tasks/:id
 // @access  Private
-const deleteTasks = asyncHandler(async (req, res) => {
+export const deleteTask = asyncHandler(async (req, res) => {
   const task = await Task.findById(req.params.id);
 
   if (!task) {
@@ -97,7 +95,7 @@ const deleteTasks = asyncHandler(async (req, res) => {
 
   // Refactored user authorization check for efficiency
   if (task.user.toString() !== req.user.id) {
-    res.status(401);
+    res.status(403);
     throw new Error('User not authorized');
   }
 
@@ -116,23 +114,31 @@ const deleteTasks = asyncHandler(async (req, res) => {
 // @desc    Add a sub-task to a task
 // @route   POST /api/tasks/:id/subtasks
 // @access  Private
-const addSubTask = asyncHandler(async (req, res) => {
+export const addSubTask = asyncHandler(async (req, res) => {
   const { text } = req.body;
+  const task = await Task.findById(req.params.id);
+
   if (!text) {
     res.status(400);
     throw new Error('Please provide text for the sub-task');
   }
-
-  const task = await Task.findById(req.params.id);
-
-  if (task && task.user.toString() === req.user.id) {
-    task.subTasks.push({ text });
-    await task.save();
-    res.status(201).json(task);
-  } else {
+  if (!task) {
     res.status(404);
-    throw new Error('Task not found or user not authorized');
+    throw new Error('Task not found');
   }
+  if (task.user.toString() !== req.user.id) {
+    res.status(403);
+    throw new Error('User Not authorized');
+  }
+  const newSubTask = {
+    text,
+    completed: false,
+    // createdAt: new Date(),
+  };
+
+  task.subTasks.push(newSubTask);
+  await task.save();
+  res.status(200).json(task);
 });
 
 
@@ -140,58 +146,64 @@ const addSubTask = asyncHandler(async (req, res) => {
 // @desc    Update a sub-task
 // @route   PUT /api/tasks/:id/subtasks/:subTaskId
 // @access  Private
-const updateSubTask = asyncHandler(async (req, res) => {
-  const { text, completed } = req.body;
-  const task = await Task.findById(req.params.id);
+export const updateSubTask = asyncHandler(async (req, res) => {
+  const { id, subTaskId } = req.params;
 
-  if (task && task.user.toString() === req.user.id) {
-    const subTask = task.subTasks.id(req.params.subTaskId);
-    if (subTask) {
-      subTask.text = text ?? subTask.text;
-      subTask.completed = completed ?? subTask.completed;
-      await task.save();
-      res.status(200).json(task);
-    } else {
-      res.status(404);
-      throw new Error('Sub-task not found');
-    }
-  } else {
+  const task = await Task.findById(id);
+  if (!task) {
     res.status(404);
-    throw new Error('Task not found or user not authorized');
+    throw new Error('Task not found');
   }
+  if (task.user.toString() !== req.user.id) {
+    res.status(403);
+    throw new Error('Not authorized');
+  }
+
+  const subTask = task.subTasks.id(subTaskId);
+  if (!subTask) {
+    res.status(404);
+    throw new Error('Subtask not found');
+  }
+
+  const { text, completed } = req.body;
+  subTask.text = text ?? subTask.text;
+  subTask.completed = completed ?? subTask.completed;
+      
+  await task.save();
+  res.status(200).json(task);
 });
+
 
 
 
 // @desc    Delete a sub-task
 // @route   DELETE /api/tasks/:id/subtasks/:subTaskId
 // @access  Private
-const deleteSubTask = asyncHandler(async (req, res) => {
-    const task = await Task.findById(req.params.id);
+export const deleteSubTask = asyncHandler(async (req, res) => {
+  const { id, subTaskId } = req.params;
+  
+  const task = await Task.findById(id);
+  if(!task){
+    res.status(404);
+    throw new Error('Task not found');
+  }
+  if(task.user.toString() !== req.user.id){
+    res.status(403);
+    throw new Error('Not Authorized');
+  }
 
-    if (task && task.user.toString() === req.user.id) {
-        const subTask = task.subTasks.id(req.params.subTaskId);
-        if (subTask) {
-            subTask.deleteOne();
-            await task.save();
-            res.status(200).json(task);
-        } else {
-            res.status(404);
-            throw new Error('Sub-task not found');
-        }
-    } else {
-        res.status(404);
-        throw new Error('Task not found or user not authorized');
-    }
+//Making list, except the subTask to be deleted not using Mongoose
+  // task.subTasks = task.subTasks.filter(
+  //     (sub) => sub._id.toString() !== subTaskId);
+
+  const subTask = task.subTasks.id(subTaskId);
+  if (subTask) {
+      subTask.deleteOne();
+  } else {
+      res.status(404);
+      throw new Error('Sub-task not found');
+  }
+
+  await task.save();
+  res.status(200).json(task);
 });
-
-
-export {
-  getTasks,
-  setTasks,
-  updateTasks,
-  deleteTasks,
-  addSubTask,
-  updateSubTask,
-  deleteSubTask
-};

@@ -10,12 +10,13 @@ const userSchema = mongoose.Schema(
       type: String,
       required: [true, 'Email is required'],
       unique: true,
-      // Simple regex to validate email format
+      lowercase: true,
       match: [/.+\@.+\..+/, 'Please enter a valid email'],
     },
     password: {
       type: String,
       required: [true, 'Password is required'],
+      minlength: 8,
     },
     role: {
       type: String,

@@ -1,36 +1,41 @@
 import express from 'express';
-const router = express.Router();
 
 import {
   getTasks,
-  setTasks,
-  updateTasks,
-  deleteTasks,
+  createTask,
+  updateTask,
+  deleteTask,
   addSubTask,
   updateSubTask,
   deleteSubTask,
 } from '../controllers/taskController.js';
 
-import protect from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 
-// --- Main Task Routes ---
-// Chain GET and POST for the base route '/'
-router.route('/')
-  .get(protect, getTasks)
-  .post(protect, setTasks);
+const router = express.Router();
+router.use(protect); // applies to all routes below
 
-// Chain PUT and DELETE for the '/:id' route
-router.route('/:id')
-  .put(protect, updateTasks)
-  .delete(protect, deleteTasks);
+
+// -- Core Task Routes --
+
+router.route('/')  // Chain GET and POST for the base route '/'
+  .get(getTasks)     // GET /api/tasks – list all for logged-in user  .post( createTask);
+  .post(createTask); // POST /api/tasks – create new task
+
+router.route('/:id')  // Chain PUT and DELETE for the '/:id' route
+  .put(updateTask)    // PUT /api/tasks/:id – update
+  .delete(deleteTask) // DELETE /api/tasks/:id – delete
+
 
 // --- Sub-Task Routes ---
-// Add a sub-task to a specific task
-router.post('/:id/subtasks', protect, addSubTask);
 
-// Update or delete a specific sub-task
+router.route('/:id/subtasks')  
+  .post( addSubTask)    // Add a sub-task to a specific task
+
 router.route('/:id/subtasks/:subTaskId')
-  .put(protect, updateSubTask)
-  .delete(protect, deleteSubTask);
+  .put( updateSubTask)        // update subtask
+  .delete( deleteSubTask);    // delete subtask
+
+// router.post('/:id/subtasks', protect, addSubTask);
 
 export default router;
