@@ -12,7 +12,7 @@ const generateJWTtoken = (id) => {
             { expiresIn: '3d' });
     }
 
-// Joi Schema
+// Joi Schema for registration data
 const registerSchema = Joi.object({
   name: Joi.string().trim().min(2).max(50).required(),
   email: Joi.string().email().required(),
@@ -27,6 +27,23 @@ const loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
+// Joi Schema for profile updates
+const updateUserSchema = Joi.object({
+    name: Joi.string().trim().min(2).max(50).optional(),
+    bio: Joi.string().trim().max(250).allow('').optional(), // Allow empty bio
+    preferences: Joi.object({
+        theme: Joi.string().valid('light', 'dark').optional(),
+        isDiscoverable: Joi.boolean().optional(),
+        canRecieveMessages: Joi.boolean().optional(),
+        canRecieveFiles: Joi.boolean().optional(),
+    }).optional(),
+});
+
+
+
+
+
+
 
 // @desc    Register a new user
 // @route   POST /api/users
@@ -38,8 +55,8 @@ export const registerUser = asyncHandler(async (req, res) => {
     if(error){
         console.error('Joi Validation Error:', error.details);
         res.status(400);
-        // throw new Error ('Invalid input data');
         throw new Error(error.details[0].message);
+        // throw new Error ('Invalid input data');
     }
     
     const { name, email, password } = value;
@@ -67,6 +84,9 @@ export const registerUser = asyncHandler(async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
+            avatar: user.avatar,
+            bio: user.bio,
+            preferences: user.preferences,
             token: generateJWTtoken(user._id)
         });
     } else {
@@ -97,6 +117,9 @@ export const loginUser = asyncHandler(async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
+            avatar: user.avatar,
+            bio: user.bio,
+            preferences: user.preferences,
             token: generateJWTtoken(user._id)
         });
     } else {
@@ -107,21 +130,63 @@ export const loginUser = asyncHandler(async (req, res) => {
 
 
 
-// @desc    Get current user data
+// @desc    Get current user's full profile
 // @route   GET /api/users/current
 // @access  Private
 export const getCurrentUser = asyncHandler(async (req, res) => {
-    // req.user is set by the 'protect' middleware
-
-//   const { _id, name, email } = await User.findById(req.user.id);
-
+    // req.user is set by the 'protect' middleware and contains the user document
     res.status(200).json({
         id: req.user._id,
         name: req.user.name,
         email: req.user.email,
-        role: req.user.role
+        role: req.user.role,
+        avatar: req.user.avatar,
+        bio: req.user.bio,
+        preferences: req.user.preferences,
     });
 });
+
+
+
+// @desc    Update current user's profile
+// @route   PUT /api/users/me
+// @access  Private
+export const updateCurrentUser = asyncHandler(async (req, res) => {
+    const { error, value } = updateUserSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+    // Only update fields that were provided in request
+    if (value.name) user.name = value.name;
+    if (value.bio !== undefined) user.bio = value.bio; 
+    // Merge preferences object to avoid overwriting nested fields
+    if (value.preferences) {
+        user.preferences = { ...user.preferences, ...value.preferences };
+    }
+    
+    const updatedUser = await user.save();
+
+    // Respond with the updated user data (excluding password)
+    res.status(200).json({
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar: updatedUser.avatar,
+        bio: updatedUser.bio,
+        preferences: updatedUser.preferences,
+    });
+});
+
+
+
 
 
 // --- PASSWORD RESET CONTROLLERS ---
@@ -216,4 +281,3 @@ export const resetPassword = asyncHandler(async (req, res) => {
         message: 'Password reset successful'
     });
 });
-
