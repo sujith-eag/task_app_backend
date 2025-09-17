@@ -1,36 +1,36 @@
 import express from 'express';
 const router = express.Router();
 
-import {
-  registerUser,
-  loginUser,
-  getCurrentUser,
-  forgotPassword,
-  resetPassword,
-    } from '../controllers/userController.js';
-
+// --- Import from refactored controllers ---
+import { registerUser, loginUser } from '../controllers/authController.js';
 import { 
-  protect, 
-  authorizeRoles 
-    } from '../middleware/authMiddleware.js';
+    getCurrentUser, 
+    updateCurrentUser, 
+    changePassword 
+    } from '../controllers/userController.js';
+import { 
+    forgotPassword, 
+    resetPassword 
+    } from '../controllers/passwordController.js';
 
-    
-// --- Authentication & User Routes ---
+// --- Import middleware ---
+import { protect, authorizeRoles } from '../middleware/authMiddleware.js';
+
+
+// --- Authentication Routes (Public) ---
 router.post('/', registerUser);
 router.post('/login', loginUser);
-router.get('/current', protect, getCurrentUser);
 
-// --- Password Reset Routes ---
+// --- Password Reset Routes (Public) ---
 router.post('/forgotpassword', forgotPassword);
 router.put('/resetpassword/:resettoken', resetPassword);
 
+// --- User Profile Routes (Private) ---
+router.route('/me')
+    .get(protect, getCurrentUser)
+    .put(protect, updateCurrentUser);
 
-// Delete User Function Not yet Implemented
-// router.delete('/admin/delete-user/:id', 
-//   protect,
-//   authorizeRoles('admin'),
-//   deleteUserController
-// );
+router.put('/password', protect, changePassword);
 
 
 export default router;
