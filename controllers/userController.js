@@ -40,6 +40,21 @@ const updateUserSchema = Joi.object({
 });
 
 
+// Joi Schema for password change
+const changePasswordSchema = Joi.object({
+    currentPassword: Joi.string().required(),
+    newPassword: Joi.string().pattern(
+        new RegExp(
+            '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$'
+        )).required()
+        .messages({ // Custom error message for regex failure
+            'string.pattern.base': 'Password must be at least 8 characters long and contain an uppercase letter, a lowercase letter, a number, and a special character.'
+        }),
+    confirmPassword: Joi.string().required().valid(Joi.ref('newPassword'))
+        .messages({ // Custom error message for mismatch
+            'any.only': 'Passwords do not match.'
+        }),
+});
 
 
 
@@ -280,4 +295,41 @@ export const resetPassword = asyncHandler(async (req, res) => {
         success: true,
         message: 'Password reset successful'
     });
+});
+
+
+
+
+// @desc    Change user password
+// @route   PUT /api/users/password
+// @access  Private
+export const changePassword = asyncHandler(async (req, res) => {
+    // Validate the request body
+    const { error, value } = changePasswordSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+
+    const { currentPassword, newPassword } = value;
+
+    // Find the user and explicitly select the password field
+    // (It might be excluded by default in the userModel)
+    const user = await User.findById(req.user.id).select('+password');
+
+    // Verify the current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+        res.status(401); // 401 Unauthorized
+        throw new Error('Incorrect current password.');
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    
+    // Save the user with the new password
+    await user.save();
+    
+    res.status(200).json({ message: 'Password updated successfully.' });
 });
