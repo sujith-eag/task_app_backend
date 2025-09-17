@@ -4,6 +4,9 @@ import Joi from 'joi';
 
 import User from '../models/userModel.js';
 
+import { deleteFile as deleteFromS3 } from '../utils/s3Service.js';
+import { uploadFile as uploadToS3 } from '../utils/s3Service.js';
+
 
 
 // Joi Schema for profile updates
@@ -144,3 +147,44 @@ export const getDiscoverableUsers = asyncHandler(async (req, res) => {
 
     res.status(200).json(users);
 });
+
+
+
+
+// @desc    Update a user's avatar
+// @route   PUT /api/users/me/avatar
+// @access  Private
+export const updateUserAvatar = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        res.status(400);
+        throw new Error('No avatar image file provided.');
+    }
+
+    const user = await User.findById(req.user.id);
+
+    // If user already has an avatar, delete the old one from S3
+    if (user.avatar) {
+        try {
+            // Extract the S3 key from the full URL
+            const oldAvatarUrl = new URL(user.avatar);
+            const oldS3Key = oldAvatarUrl.pathname.substring(1); // Remove leading '/'
+            await deleteFromS3(oldS3Key);
+        } catch (error) {
+            console.error('Failed to delete old avatar from S3:', error);
+            // Non-fatal error, we can still proceed with uploading the new one.
+        }
+    }
+
+    // Upload the new avatar to S3
+    const newS3Key = await uploadToS3(req.file);
+
+    // Construct the full public URL for the new avatar
+    const newAvatarUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_S3_BUCKET_REGION}.amazonaws.com/${newS3Key}`;
+
+    // Update the user's avatar field and save
+    user.avatar = newAvatarUrl;
+    await user.save();
+
+    res.status(200).json({ avatar: newAvatarUrl });
+});
+

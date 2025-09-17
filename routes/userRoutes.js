@@ -1,7 +1,9 @@
 import express from 'express';
 const router = express.Router();
 
-// --- Import from refactored controllers ---
+import avatarUpload from '../middleware/avatarUploadMiddleware.js';
+
+
 import { registerUser, loginUser } from '../controllers/authController.js';
 import { 
     getCurrentUser, 
@@ -14,8 +16,9 @@ import {
     resetPassword 
     } from '../controllers/passwordController.js';
 
-// --- Import middleware ---
+// --- middleware ---
 import { protect, authorizeRoles } from '../middleware/authMiddleware.js';
+
 
 
 // --- Authentication Routes (Public) ---
@@ -31,6 +34,7 @@ router.route('/me')
     .get(protect, getCurrentUser)
     .put(protect, updateCurrentUser);
 
+router.put('/me/avatar', protect, avatarUpload, updateUserAvatar);
 router.get('/discoverable', protect, getDiscoverableUsers);
 router.put('/password', protect, changePassword);
 

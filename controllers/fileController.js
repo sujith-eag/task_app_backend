@@ -1,0 +1,250 @@
+import asyncHandler from 'express-async-handler';
+import Joi from 'joi';
+
+import { uploadFile as uploadToS3 } from '../utils/s3Service.js';
+import { getSignedUrl as getS3SignedUrl } from '../utils/s3Service.js';
+import { deleteFile as deleteFromS3 } from '../utils/s3Service.js';
+
+import File from '../models/fileModel.js';
+import User from '../models/userModel.js';
+
+
+const shareFileSchema = Joi.object({
+    // ID of the user to share the file with should be present
+    userIdToShareWith: Joi.string().required(),
+});
+
+
+
+// @desc    Upload one or more files
+// @route   POST /api/files
+// @access  Private
+export const uploadFiles = asyncHandler(async (req, res) => {
+    // Check if files were actually uploaded
+    // `req.files` is populated by the `upload.array('files', 4)` middleware
+    if (!req.files || req.files.length === 0) {
+        res.status(400);
+        throw new Error('No files uploaded.');
+    }
+
+    // Upload all files to S3 in parallel for better performance
+    const uploadPromises = req.files.map(async (file) => {
+        // Upload the file buffer
+        const s3Key = await uploadToS3(file);
+        
+        // Return metadata for files
+        return {
+            user: req.user.id,
+            fileName: file.originalname,
+            s3Key: s3Key,
+            fileType: file.mimetype,
+        };
+    });
+
+    // Wait for all uploads to complete
+    const filesMetadata = await Promise.all(uploadPromises);
+
+    // Save metadata for all uploaded files to the database
+    const newFiles = await File.insertMany(filesMetadata);
+
+    // Respond with newly created file records
+    res.status(201).json(newFiles);
+});
+
+
+
+
+// @desc    Get all files owned by or shared with the user
+// @route   GET /api/files
+// @access  Private
+export const getUserFiles = asyncHandler(async (req, res) => {
+    
+    const loggedInUserId = req.user.id;
+    // Find all files where the user is the owner OR is in the sharedWith array.
+    const files = await File.find({
+        $or: [
+            { user: loggedInUserId }, 
+            { sharedWith: loggedInUserId }
+        ]
+    })
+    .sort({ createdAt: -1 }) // Sort by most recently created
+    .populate('user', 'name avatar'); // Populate the owner's details for frontend display
+                // replaces user id with name and avatar
+
+    res.status(200).json(files);
+});
+
+
+
+
+
+// @desc    Get a temporary, pre-signed URL to download a file
+// @route   GET /api/files/:id/download
+// @access  Private
+export const getDownloadLink = asyncHandler(async (req, res) => {
+    const loggedInUserId = req.user.id;
+    const fileId = req.params.id;
+
+    // Find the file in the database
+    const file = await File.findById(fileId);
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found.');
+    }
+
+    // Verify the user has permission to access this file
+    // Mongoose ObjectId needs to be converted to a string for comparison
+    const isOwner = file.user.toString() === loggedInUserId;
+    const isSharedWith = file.sharedWith.some(id => id.toString() === loggedInUserId);
+
+    if (!isOwner && !isSharedWith) {
+        res.status(403); // 403 Forbidden: user is authenticated but not authorized
+        throw new Error('You do not have permission to access this file.');
+    }
+
+    // Generate secure, temporary download link using our S3 service
+    const downloadUrl = await getS3SignedUrl(file.s3Key);
+
+    // Send the URL back
+    res.status(200).json({ url: downloadUrl });
+});
+
+
+
+
+// @desc    Delete a file
+// @route   DELETE /api/files/:id
+// @access  Private
+export const deleteFile = asyncHandler(async (req, res) => {
+    const loggedInUserId = req.user.id;
+    const fileId = req.params.id;
+
+    // Find the file in the database
+    const file = await File.findById(fileId);
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found.');
+    }
+
+    // Verify the user is the owner of the file.
+    // A user the file is shared with CANNOT delete it.
+    if (file.user.toString() !== loggedInUserId) {
+        res.status(403);
+        throw new Error('You do not have permission to delete this file.');
+    }
+
+    // Delete the file from the S3 bucket first.
+    await deleteFromS3(file.s3Key);
+
+    // After successful S3 deletion, delete the record from the database.
+    await File.findByIdAndDelete(fileId);
+
+    res.status(200).json({ message: 'File deleted successfully.' });
+});
+
+
+
+
+// @desc    Share a file with another user
+// @route   POST /api/files/:id/share
+// @access  Private
+export const shareFile = asyncHandler(async (req, res) => {
+    // Validate the request body
+    const { error, value } = shareFileSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+
+    const { userIdToShareWith } = value;
+    const userToShareWith = await User.findById(userIdToShareWith);
+    // Prevent owner from sharing a file with themselves
+    if (userIdToShareWith === req.user.id) {
+        res.status(400);
+        throw new Error('You cannot share a file with yourself.');
+    }
+    // Verify the user being shared with actually exists
+    if (!userToShareWith) {
+        res.status(404);
+        throw new Error('User to share with not found.');
+    }
+    // Check the recipient's file sharing preferences
+    if (!userToShareWith.preferences.canRecieveFiles) {
+        res.status(403); // Forbidden
+        throw new Error('This user is not accepting shared files at the moment.');
+    }
+
+    
+    const file = await File.findById(req.params.id);
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found.');
+    }
+    // Verify that the person making the request is the owner
+    if (file.user.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('You do not have permission to share this file.');
+    }
+    // Check if the file is already shared with this user
+    if (file.sharedWith.some(id => id.toString() === userIdToShareWith)) {
+        res.status(400);
+        throw new Error('File is already shared with this user.');
+    }
+    
+    // Add the user to the sharedWith array and save
+    file.sharedWith.push(userIdToShareWith);
+    await file.save();
+
+    // Populate user details for a clean frontend response
+    await file.populate('user', 'name avatar');
+    await file.populate('sharedWith', 'name avatar');
+
+    res.status(200).json(file);
+});
+
+
+
+// @desc    Manage share access (owner revokes or user removes self)
+// @route   DELETE /api/files/:id/share
+// @access  Private
+export const manageShareAccess = asyncHandler(async (req, res) => {
+    const file = await File.findById(req.params.id);
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found.');
+    }
+
+    const loggedInUserId = req.user.id;
+    const isOwner = file.user.toString() === loggedInUserId;
+
+    const { userIdToRemove } = req.body; // This may be undefined, then it's the shared user
+
+    // --- Logic to determine which user to remove ---
+    let userToRemoveIdFrom = null;
+
+    // Scenario A: The owner is revoking access for a specific user
+    if (isOwner && userIdToRemove) {
+        userToRemoveIdFrom = userIdToRemove;
+    } 
+    // Scenario B: A shared user is removing their own access (no request body needed)
+    else if (!isOwner && !userIdToRemove) {
+        userToRemoveIdFrom = loggedInUserId;
+    } 
+    // Invalid scenarios (owner not specifying who to remove, or non-owner trying to remove someone else)
+    else {
+        res.status(403);
+        throw new Error('You do not have permission to perform this action.');
+    }
+
+    // --- Update the document ---
+    // Use MongoDB's $pull operator to remove the ID from the array
+    const updatedFile = await File.findByIdAndUpdate(
+        req.params.id,
+        { $pull: { sharedWith: userToRemoveIdFrom } },
+        { new: true } // Return the updated document
+    )
+    .populate('user', 'name avatar')
+    .populate('sharedWith', 'name avatar');
+
+    res.status(200).json(updatedFile);
+});
