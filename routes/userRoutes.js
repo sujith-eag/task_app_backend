@@ -6,7 +6,8 @@ import { registerUser, loginUser } from '../controllers/authController.js';
 import { 
     getCurrentUser, 
     updateCurrentUser, 
-    changePassword 
+    changePassword,
+    getDiscoverableUsers 
     } from '../controllers/userController.js';
 import { 
     forgotPassword, 
@@ -30,6 +31,7 @@ router.route('/me')
     .get(protect, getCurrentUser)
     .put(protect, updateCurrentUser);
 
+router.get('/discoverable', protect, getDiscoverableUsers);
 router.put('/password', protect, changePassword);
 
 
