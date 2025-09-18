@@ -104,7 +104,7 @@ export const getDownloadLink = asyncHandler(async (req, res) => {
     }
 
     // Generate secure, temporary download link using our S3 service
-    const downloadUrl = await getS3SignedUrl(file.s3Key);
+    const downloadUrl = await getS3SignedUrl(file.s3Key, file.fileName);
 
     // Send the URL back
     res.status(200).json({ url: downloadUrl });

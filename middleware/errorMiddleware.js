@@ -10,7 +10,7 @@ const errorHandler = (err, req, res, next) => {
         let message = 'An upload error occurred.';
         switch (err.code) {
             case 'LIMIT_FILE_SIZE':
-                message = 'File is too large. Maximum size is 10MB.';
+                message = 'File is too large. Maximum size allowed is 10MB.';
                 break;
             case 'LIMIT_FILE_COUNT':
                 message = 'Too many files uploaded. Maximum is 4 at a time.';

@@ -14,26 +14,41 @@ const userSchema = mongoose.Schema(
       match: [/.+\@.+\..+/, 'Please enter a valid email'],
     },
     password: { 
-      type: String, 
+      type: String,
       required: [true, 'Password is required'], 
       minlength: 8,
+    },
+    googleId: { 
+      type: String, 
+      unique: true, 
+      sparse: true 
     },
     role: { 
       type: String, 
       enum: ['user', 'admin'], 
       default: 'user',
     },
+    group: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Group' 
+    },
+    isActive: { type: Boolean, default: true },
+    isVerified: { type: Boolean, default: false }, // for Mmail Verification
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
+    passwordResetToken: String,
+    passwordResetExpires: Date,
     avatar: { type: String },
     bio: { type: String },
-    isActive: { type: Boolean, default: true },
     preferences: {
         theme: { type: String, default: 'light' },
         isDiscoverable: { type: Boolean, default: true },
         canRecieveMessages: { type: Boolean, default: true },
         canRecieveFiles: { type: Boolean, default: true },
     },
-    passwordResetToken: String,
-    passwordResetExpires: Date,
+    lastLoginAt: { type: Date },
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockoutExpires: { type: Date },
   }, 
   { timestamps: true }
 );

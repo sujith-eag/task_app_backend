@@ -63,14 +63,14 @@ export const deleteFile = async (fileKey) => {
 // Generates a secure, temporary URL to download a file from S3.
 // @param {string} fileKey - The key of the file to generate a URL for.
 // @returns {Promise<string>} - The pre-signed URL.
-export const getSignedUrl = async (fileKey) => {
+export const getSignedUrl = async (fileKey, fileName) => {
     const getParams = {
         Bucket: bucketName,
         Key: fileKey,
-    };
+        ResponseContentDisposition: `attachment; filename="${fileName}"`
+    }; // This tells S3 to send headers that force a download with the original filename
 
     const command = new GetObjectCommand(getParams);
-    
     // The URL will be valid for 60 seconds
     const url = await awsGetSignedUrl(s3Client, command, { expiresIn: 60 });
     

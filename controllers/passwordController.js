@@ -6,7 +6,6 @@ import bcrypt from 'bcryptjs';
 import User from '../models/userModel.js';
 
 
-
 // --- Joi Validation Schemas ---
 
 const forgotPasswordSchema = Joi.object({
@@ -43,9 +42,14 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email: value.email });
 
     if (user) {
-        // Generate and save the reset token if the user exists
+        // --- Check for an existing, valid token ---
+        if (user.passwordResetToken && user.passwordResetExpires > Date.now()) {
+            res.status(400); // Bad Request or 429 Too Many Requests
+            throw new Error('A password reset link has already been sent. Please check your email or wait until the current link expires.');
+        }
+
+        // Generate and save the reset token if user exists
         const resetToken = crypto.randomBytes(20).toString('hex');
-        
 		// Hash token to store in DB
         user.passwordResetToken = crypto
 	        .createHash('sha256')
@@ -58,7 +62,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         // you would email the unhashed `resetToken` to the user.
     }
 
-    // 4. Always send a generic success message to prevent email enumeration attacks
+    // A generic success message to prevent email enumeration attacks
     res.status(200).json({ 
         message: 'If an account with that email exists, a password reset link has been sent.' 
     });

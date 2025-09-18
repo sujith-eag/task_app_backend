@@ -5,10 +5,14 @@ import Joi from 'joi';
 
 import User from '../models/userModel.js';
 
-// JWT Helper Functio
+const MAX_LOGIN_ATTEMPTS=5;
+const LOCKOUT_DURATION_MINUTES=10;
+
+// JWT Helper Function
 const generateJWTtoken = (id) => {
-    return jwt.sign( { id }, process.env.JWT_SECRET, 
-            { expiresIn: '3d' });
+    return jwt.sign( { id }, 
+        process.env.JWT_SECRET, 
+        { expiresIn: '3d' });
     }
 
 // Joi Schema for registration data
@@ -93,9 +97,27 @@ export const loginUser = asyncHandler(async (req, res) => {
         }
         
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password +failedLoginAttempts +lockoutExpires');
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (!user) {
+        res.status(400);
+        throw new Error('Invalid credentials');
+    }
+    // if (!user.isVerified) {
+    //     res.status(403); // Forbidden
+    //     throw new Error('Please verify your email address before logging in.');
+    // }
+    if (user.lockoutExpires && user.lockoutExpires > new Date()) {
+        res.status(403); // Forbidden
+        throw new Error('Account is temporarily locked. Please try again later.');
+    }
+    if (await bcrypt.compare(password, user.password)) {
+        user.failedLoginAttempts = 0;
+        user.lockoutExpires = undefined; // Clear any previous lockout
+        user.lastLoginAt = new Date;
+
+        await user.save();
+
         res.json({
             _id: user.id,
             name: user.name,
@@ -107,8 +129,13 @@ export const loginUser = asyncHandler(async (req, res) => {
             token: generateJWTtoken(user._id)
         });
     } else {
+        user.failedLoginAttempts += 1;
+        if (user.failedLoginAttempts >= MAX_LOGIN_ATTEMPTS) {
+            user.lockoutExpires = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
+        }
+        await user.save();
+
         res.status(400);
         throw new Error('Invalid credentials');
     }
 });
-

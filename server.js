@@ -1,22 +1,20 @@
 import express from 'express';
 import cors from 'cors';
+
 import 'dotenv/config'; // auto-runs dotenv.config()
 // import dotenv from 'dotenv';
 // dotenv.config();
 
 import helmet from 'helmet'; // Security headers
 import morgan from 'morgan'; // Request logger
-import rateLimit from 'express-rate-limit'; // Rate limiting
 
 import taskRoutes from './routes/taskRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
-
 import errorHandler from './middleware/errorMiddleware.js';
 import connectDB from './connect/database.js';
 
 // --- Initial Setup ---
-
 const app = express();
 
 // Connect DB with error handling
@@ -40,15 +38,6 @@ app.use(helmet({
   crossOriginResourcePolicy: false, // allow images from other origins
   })
 ); 
-
-// Rate limiting to all API requests
-const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 100,                 // Limit each IP to 100 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
 
 
 // morgan for logging in development mode

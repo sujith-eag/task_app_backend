@@ -13,7 +13,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const limits = {
-    fileSize: 3 * 1024 * 1024, // 2 MB
+    fileSize: 5 * 1024 * 1024, // 6 MB
 };
 
 const avatarUpload = multer({
