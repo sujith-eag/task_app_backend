@@ -158,26 +158,13 @@ export const shareFile = asyncHandler(async (req, res) => {
     }
 
     const { userIdToShareWith } = value;
-    const userToShareWith = await User.findById(userIdToShareWith);
-    // Prevent owner from sharing a file with themselves
-    if (userIdToShareWith === req.user.id) {
-        res.status(400);
-        throw new Error('You cannot share a file with yourself.');
-    }
-    // Verify the user being shared with actually exists
-    if (!userToShareWith) {
-        res.status(404);
-        throw new Error('User to share with not found.');
-    }
-    // Check the recipient's file sharing preferences
-    if (!userToShareWith.preferences.canRecieveFiles) {
-        res.status(403); // Forbidden
-        throw new Error('This user is not accepting shared files at the moment.');
-    }
-
-    
-    const file = await File.findById(req.params.id);
-    if (!file) {
+	// Fetching file and the user-to-share-with in parallel
+    const [file, userToShareWith] = await Promise.all([
+        File.findById(req.params.id),
+        User.findById(userIdToShareWith)
+    ]);
+   
+     if (!file) {
         res.status(404);
         throw new Error('File not found.');
     }
@@ -186,19 +173,39 @@ export const shareFile = asyncHandler(async (req, res) => {
         res.status(403);
         throw new Error('You do not have permission to share this file.');
     }
+    // Verify the user being shared with actually exists
+    if (!userToShareWith) {
+        res.status(404);
+        throw new Error('User to share with not found.');
+    }
+    // Prevent owner from sharing a file with themselves
+    if (userIdToShareWith === req.user.id) {
+        res.status(400);
+        throw new Error('You cannot share a file with yourself.');
+    }
+    // Check the recipient's file sharing preferences
+    if (!userToShareWith.preferences.canRecieveFiles) {
+        res.status(403); // Forbidden
+        throw new Error('This user is not accepting shared files at the moment.');
+    }
     // Check if the file is already shared with this user
     if (file.sharedWith.some(id => id.toString() === userIdToShareWith)) {
         res.status(400);
         throw new Error('File is already shared with this user.');
     }
     
+
     // Add the user to the sharedWith array and save
     file.sharedWith.push(userIdToShareWith);
     await file.save();
 
     // Populate user details for a clean frontend response
-    await file.populate('user', 'name avatar');
-    await file.populate('sharedWith', 'name avatar');
+    await file.populate([
+	    { path: 'user', select: 'name avatar' }, 
+	    { path: 'sharedWith', select: 'name avatar' }
+	    ]);
+    // await file.populate('user', 'name avatar');
+    // await file.populate('sharedWith', 'name avatar');
 
     res.status(200).json(file);
 });
