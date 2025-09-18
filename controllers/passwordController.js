@@ -45,7 +45,10 @@ export const forgotPassword = asyncHandler(async (req, res) => {
             res.status(400); // Bad Request or 429 Too Many Requests
             throw new Error('A password reset link has already been sent. Please check your email or wait until the current link expires.');
         }
-
+        if(!user.isVerified){
+            res.status(403);
+            throw new Error('This account has not been verified. Please check your email for a verification link.');
+        }
         // Generate and save the reset token if user exists
         const resetToken = crypto.randomBytes(20).toString('hex');
 		// Hash token to store in DB
@@ -79,7 +82,6 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         }
     }
 
-    
     // A generic success message to prevent email enumeration attacks
     res.status(200).json({ 
         message: 'If an account with that email exists, a password reset link has been sent.' 
