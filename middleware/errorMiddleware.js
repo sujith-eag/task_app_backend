@@ -1,7 +1,8 @@
 import { MulterError } from 'multer';
 
 const errorHandler = (err, req, res, next) => {
-
+    console.error('--- 3. GLOBAL ERROR HANDLER CAUGHT AN ERROR ---');
+    console.error(err.stack); // Log the full error stack
     const statusCode = res.statusCode ? res.statusCode : 500;
 
     // --- Custom Multer Error Handling ---
@@ -23,7 +24,6 @@ const errorHandler = (err, req, res, next) => {
         return res.status(400).json({ 
 	        message: 'Invalid file type.' });
     }
-
     // --- Default Error Handling ---
     res.status(statusCode).json({
         message: err.message,

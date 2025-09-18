@@ -180,7 +180,7 @@ export const updateUserAvatar = asyncHandler(async (req, res) => {
 
     // Construct the full public URL for the new avatar
     const newAvatarUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_S3_BUCKET_REGION}.amazonaws.com/${newS3Key}`;
-
+    console.log('Constructed Avatar URL:', newAvatarUrl);
     // Update the user's avatar field and save
     user.avatar = newAvatarUrl;
     await user.save();

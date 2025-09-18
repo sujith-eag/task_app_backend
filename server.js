@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import 'dotenv/config'; // auto-runs dotenv.config()
+// import dotenv from 'dotenv';
+// dotenv.config();
 
 import helmet from 'helmet'; // Security headers
 import morgan from 'morgan'; // Request logger
@@ -8,11 +10,13 @@ import rateLimit from 'express-rate-limit'; // Rate limiting
 
 import taskRoutes from './routes/taskRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-import { errorHandler } from './middleware/errorMiddleware.js';
+import fileRoutes from './routes/fileRoutes.js';
+
+import errorHandler from './middleware/errorMiddleware.js';
 import connectDB from './connect/database.js';
 
 // --- Initial Setup ---
-dotenv.config();
+
 const app = express();
 
 // Connect DB with error handling
@@ -55,6 +59,7 @@ if (process.env.NODE_ENV === 'development') {
 // --- API Routes ---
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/files', fileRoutes);
 
 // --- 404 for undefined routes ---
 app.use((req, res, next) => {

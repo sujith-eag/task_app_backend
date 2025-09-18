@@ -45,8 +45,9 @@ export const uploadFiles = asyncHandler(async (req, res) => {
     const filesMetadata = await Promise.all(uploadPromises);
 
     // Save metadata for all uploaded files to the database
-    const newFiles = await File.insertMany(filesMetadata);
-
+    let newFiles = await File.insertMany(filesMetadata);
+    newFiles = await File.populate(newFiles, { path: 'user', select: 'name avatar' });
+    
     // Respond with newly created file records
     res.status(201).json(newFiles);
 });

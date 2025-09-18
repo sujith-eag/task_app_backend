@@ -4,7 +4,7 @@ import {
     DeleteObjectCommand,
     GetObjectCommand 
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from 'crypto';
 
 // Loading credentials and region from environment variables
@@ -72,7 +72,7 @@ export const getSignedUrl = async (fileKey) => {
     const command = new GetObjectCommand(getParams);
     
     // The URL will be valid for 60 seconds
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 60 });
+    const url = await awsGetSignedUrl(s3Client, command, { expiresIn: 60 });
     
     return url;
 };

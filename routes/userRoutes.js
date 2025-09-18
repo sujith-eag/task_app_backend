@@ -1,20 +1,19 @@
 import express from 'express';
 const router = express.Router();
 
-import avatarUpload from '../middleware/avatarUploadMiddleware.js';
-
-
 import { registerUser, loginUser } from '../controllers/authController.js';
 import { 
     getCurrentUser, 
     updateCurrentUser, 
     changePassword,
-    getDiscoverableUsers 
+    getDiscoverableUsers,
+    updateUserAvatar,
     } from '../controllers/userController.js';
 import { 
     forgotPassword, 
     resetPassword 
     } from '../controllers/passwordController.js';
+import avatarUpload from '../middleware/avatarUploadMiddleware.js';
 
 // --- middleware ---
 import { protect, authorizeRoles } from '../middleware/authMiddleware.js';
@@ -34,9 +33,22 @@ router.route('/me')
     .get(protect, getCurrentUser)
     .put(protect, updateCurrentUser);
 
-router.put('/me/avatar', protect, avatarUpload, updateUserAvatar);
+// router.put('/me/avatar', protect, avatarUpload, updateUserAvatar);
 router.get('/discoverable', protect, getDiscoverableUsers);
 router.put('/password', protect, changePassword);
+
+router.put(
+    '/me/avatar',
+    protect,
+    (req, res, next) => {
+        console.log('--- 1. Request has passed the "protect" middleware ---');
+        next(); // Pass control to the next middleware (avatarUpload)
+    },
+    avatarUpload,
+    updateUserAvatar
+);
+
+
 
 
 export default router;
