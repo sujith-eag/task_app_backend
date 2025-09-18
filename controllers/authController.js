@@ -2,6 +2,8 @@ import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import Joi from 'joi';
+import crypto from 'crypto';
+import { sendEmail } from '../utils/emailService.js';
 
 import User from '../models/userModel.js';
 
@@ -25,7 +27,6 @@ const registerSchema = Joi.object({
       )).required(),
 });
 
-
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
@@ -33,55 +34,92 @@ const loginSchema = Joi.object({
 
 
 
-
-
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
 export const registerUser = asyncHandler(async (req, res) => {
-    
     // Validate first
     const { error, value } = registerSchema.validate(req.body);
     if(error){
         console.error('Joi Validation Error:', error.details);
         res.status(400);
         throw new Error(error.details[0].message);
-        // throw new Error ('Invalid input data');
     }
-    
+
     const { name, email, password } = value;
-    // Checking for existing user
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-        res.status(400);
-        throw new Error('Unable to register user'); // Not revealing user exists
-    }
-    // Hashing Password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    let user = await User.findOne({ email });
 
-    const user = await User.create({
-        name,
-        email,
-        password: hashedPassword
-    });
-
+    // --- LOGIC FOR EXISTING USERS ---
     if (user) {
-        res.status(201).json({
-            _id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            avatar: user.avatar,
-            bio: user.bio,
-            preferences: user.preferences,
-            token: generateJWTtoken(user._id)
+        // User exists AND is verified
+        if (user.isVerified) {
+            res.status(400);
+	        throw new Error('Unable to register user'); 
+	        // Not revealing user exists
+        } 
+        // User exists but is NOT verified
+        else {
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(password, salt);
+            user.name = name;
+        }
+    } 
+    // If no user exists, create a new one.
+    else {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+        user = await User.create({
+            name,
+            email,
+            password: hashedPassword,
+            isVerified: false, // Starts Unverified
         });
-    } else {
-        res.status(400);
-        throw new Error('Unable to register user');
+    }
+    if (!user) {
+         res.status(400);
+         throw new Error('Unable to process registration.');
+    }
+
+    // --- TOKEN GENERATION AND EMAIL SENDING LOGIC
+    const verificationToken = crypto.randomBytes(20).toString('hex');
+    user.emailVerificationToken = crypto
+	    .createHash('sha256')
+	    .update(verificationToken)
+	    .digest('hex');
+	    
+    user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
+        // --- Send the verification email ---
+    try {
+        await user.save(); 
+        // Save the new user OR the updated unverified user
+        
+        const verificationUrl = `${process.env.FRONTEND_URL}/verifyemail/${verificationToken}`;
+        const message = `Welcome to Eagle Tasks! Please verify your email address by clicking the following link or pasting it into your browser: \n\n ${verificationUrl}`;
+        await sendEmail({
+            to: user.email,
+            subject: 'Verify Your Email Address for Eagle Tasks',
+            text: message,
+        });
+
+        res.status(201).json({ 
+            message: 'Registration successful. Please check your email to verify your account.' 
+        });
+
+    } catch (error) {
+        // --- ATOMIC OPERATION ---
+        // If email fails to send, delete the user
+        if (error.code !== 'EAUTH') { 
+        // Don't delete on simple auth errors, but on send failures
+             await User.deleteOne({ _id: user._id });
+        }
+
+        console.error('Email could not be sent for verification:', error);
+
+        throw new Error('User registration failed. Please try again.');
     }
 });
+
 
 
 
@@ -103,10 +141,10 @@ export const loginUser = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Invalid credentials');
     }
-    // if (!user.isVerified) {
-    //     res.status(403); // Forbidden
-    //     throw new Error('Please verify your email address before logging in.');
-    // }
+    if (!user.isVerified) {
+        res.status(403); // Forbidden
+        throw new Error('Please verify your email address before you can log in.');
+    }
     if (user.lockoutExpires && user.lockoutExpires > new Date()) {
         res.status(403); // Forbidden
         throw new Error('Account is temporarily locked. Please try again later.');
@@ -118,7 +156,7 @@ export const loginUser = asyncHandler(async (req, res) => {
 
         await user.save();
 
-        res.json({
+        res.status(201).json({
             _id: user.id,
             name: user.name,
             email: user.email,
@@ -138,4 +176,34 @@ export const loginUser = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Invalid credentials');
     }
+});
+
+
+
+
+// @desc    Verify user's email address
+// @route   GET /api/users/verifyemail/:token
+// @access  Public
+export const verifyEmail = asyncHandler(async (req, res) => {
+    const hashedToken = crypto
+        .createHash('sha256')
+        .update(req.params.token)
+        .digest('hex');
+
+    const user = await User.findOne({
+        emailVerificationToken: hashedToken,
+        emailVerificationExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+        res.status(400);
+        throw new Error('Invalid or expired verification token.');
+    }
+
+    user.isVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully. You can now log in.' });
 });

@@ -4,7 +4,7 @@ const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     
-    console.log(`--- 2. Multer's fileFilter is processing file: ${file.originalname} ---`);
+    // console.log(`--- 2. Multer's fileFilter is processing file: ${file.originalname} ---`);
     if (file.mimetype.startsWith('image/')) {
         cb(null, true);
     } else {

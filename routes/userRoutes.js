@@ -1,13 +1,12 @@
 import express from 'express';
 const router = express.Router();
 
-import { registerUser, loginUser } from '../controllers/authController.js';
+import { registerUser, loginUser, verifyEmail } from '../controllers/authController.js';
 import { 
     getCurrentUser, updateCurrentUser, changePassword,
     getDiscoverableUsers, updateUserAvatar,
     } from '../controllers/userController.js';
 import { forgotPassword, resetPassword } from '../controllers/passwordController.js';
-import avatarUpload from '../middleware/avatarUploadMiddleware.js';
 
 // --- middleware ---
 import { protect, authorizeRoles } from '../middleware/authMiddleware.js';
@@ -23,9 +22,8 @@ const avatarErrorHandler = (err, req, res, next) => {
 };
 
 
-
 // --- Authentication Routes (Public) ---
-router.post('/', registerUser);
+router.post('/register', authLimiter, registerUser);
 router.post('/login', authLimiter, loginUser);
 
 // --- Password Reset Routes (Public) ---
@@ -37,17 +35,16 @@ router.route('/me')
     .get(protect, getCurrentUser)
     .put(protect, updateCurrentUser);
 
-
+router.get('/verifyemail/:token', verifyEmail);
 router.get('/discoverable', protect, getDiscoverableUsers);
 router.put('/password', protect, changePassword);
 
 // router.put('/me/avatar', protect, avatarUpload, updateUserAvatar);
 router.put( '/me/avatar',
     protect,
-    (req, res, next) => {console.log('--- 1. Request has passed the "protect" middleware ---');next();},
-    avatarErrorHandler,
     avatarUpload,
-    updateUserAvatar
+    updateUserAvatar,
+    avatarErrorHandler, // To catch when error Occurrs, before reaching Global
 );
 
 

@@ -27,6 +27,10 @@ connectDB()
 
 const port = process.env.PORT || 8000;
 
+// Tells Express to trust the first hop from the proxy server, 
+// which is standard for platforms like Render, Heroku, etc.
+app.set('trust proxy', 1);
+
 // --- Core Middleware ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

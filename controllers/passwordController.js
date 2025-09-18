@@ -4,14 +4,9 @@ import Joi from 'joi';
 import bcrypt from 'bcryptjs';
 
 import User from '../models/userModel.js';
-
+import { sendEmail } from '../utils/emailService.js';
 
 // --- Joi Validation Schemas ---
-
-const forgotPasswordSchema = Joi.object({
-    email: Joi.string().email().required(),
-});
-
 
 const resetPasswordSchema = Joi.object({
     password: Joi.string().pattern(
@@ -24,6 +19,9 @@ const resetPasswordSchema = Joi.object({
     }),
 });
 
+const forgotPasswordSchema = Joi.object({
+    email: Joi.string().email().required(),
+});
 
 
 // --- PASSWORD RESET CONTROLLERS ---
@@ -59,9 +57,29 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10-minute expiry
         await user.save({ validateBeforeSave: false });
 
-        // you would email the unhashed `resetToken` to the user.
+        // Send Email.  https://task.sujith-eag.in/resetpassword/${resetToken}
+        const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`;
+        console.log(`Generated URL: ${resetUrl}`);
+        const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please Follow the link to the Password Reset Page: \n\n ${resetUrl}`;
+
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: 'Password Reset Token for Eagle Tasks',
+                text: message,
+            });
+        } catch (error) {
+            console.error('Email could not be sent:', error);
+            // Clear the token fields if email fails, so the user can try again
+            user.passwordResetToken = undefined;
+            user.passwordResetExpires = undefined;
+            await user.save({ validateBeforeSave: false });
+
+            throw new Error('Email could not be sent. Please try again.');
+        }
     }
 
+    
     // A generic success message to prevent email enumeration attacks
     res.status(200).json({ 
         message: 'If an account with that email exists, a password reset link has been sent.' 
