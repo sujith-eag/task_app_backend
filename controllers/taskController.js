@@ -59,6 +59,39 @@ export const createTask = asyncHandler(async (req, res) => {
 
 
 
+// @desc    Create multiple tasks at once from a pre-defined plan
+// @route   POST /api/tasks/bulk
+// @access  Private
+export const createBulkTasks = asyncHandler(async (req, res) => {
+    const { tasks } = req.body; // Expecting an object like { tasks: [...] }
+
+    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+        res.status(400);
+        throw new Error('Please provide a valid array of tasks.');
+    }
+
+    const MAX_AI_TASKS = 15;
+    if (tasks.length > MAX_AI_TASKS) {
+        res.status(400);
+        throw new Error(`Cannot create more than ${MAX_AI_TASKS} tasks at once.`);
+    }
+
+    // Add Current user's ID and a default status to each task
+    const tasksToCreate = tasks.map(task => ({
+        ...task,
+        user: req.user.id,
+        status: 'To Do',
+    }));
+
+    // insertMany for efficient bulk insertion
+    const newTasks = await Task.insertMany(tasksToCreate);
+
+    res.status(201).json(newTasks);
+});
+
+
+
+
 // @desc    Update a task
 // @route   PUT /api/tasks/:id
 // @access  Private

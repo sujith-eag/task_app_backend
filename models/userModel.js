@@ -46,6 +46,10 @@ const userSchema = mongoose.Schema(
         canRecieveMessages: { type: Boolean, default: true },
         canRecieveFiles: { type: Boolean, default: true },
     },
+    aiGenerations: {
+        count: { type: Number, default: 0 },
+        lastReset: { type: Date, default: () => new Date() },
+    },
     lastLoginAt: { type: Date },
     failedLoginAttempts: { type: Number, default: 0 },
     lockoutExpires: { type: Date },

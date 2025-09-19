@@ -11,6 +11,8 @@ import morgan from 'morgan'; // Request logger
 import taskRoutes from './routes/taskRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
+import aiTaskRoutes from './routes/aiTaskRoutes.js';
+
 import errorHandler from './middleware/errorMiddleware.js';
 import connectDB from './connect/database.js';
 
@@ -53,6 +55,7 @@ if (process.env.NODE_ENV === 'development') {
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/ai', aiTaskRoutes);
 
 // --- 404 for undefined routes ---
 app.use((req, res, next) => {
