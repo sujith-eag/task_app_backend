@@ -15,55 +15,69 @@ export const handleConnection = (socket, io) => {
     onlineUsers[userId].push(socket.id);
 
     // Listen for new messages
-    socket.on('sendMessage', async (data) => {
-        try {
-            const { recipientId, content } = data;
-            // Basic validation
-            if (!recipientId || !content?.trim()) {
-                return socket.emit('sendMessageError', { message: 'Invalid message payload.' });
-            }   
+// In handleConnection function, this replaces the existing 'sendMessage' listener
 
+socket.on('sendMessage', async (data, callback) => {
+    try {
+        const { recipientId, content } = data;
         const senderId = socket.user.id;
-
-            // Find or create a conversation between the two users
-            let conversation = await Conversation.findOne({
-                participants: { $all: [senderId, recipientId] },
-            });
-
-            if (!conversation) {
-                conversation = await Conversation.create({ participants: [senderId, recipientId] });
-            }
-
-            // Create the new message and save it to the database
-            const newMessage = await Message.create({
-                conversation: conversation._id,
-                sender: senderId,
-                content: content,
-            });
-
-            // If the recipient is online, emit the message to them in real-time
-
-            // --- REFINED EMISSION LOGIC ---
-            // Get all of the recipient's online socket IDs
-            const recipientSockets = onlineUsers[recipientId] || [];
-
-            // Check if the recipient is actually online
-            if (recipientSockets.length > 0) {
-                // Populate the sender's info to send along with the message
-                await newMessage.populate('sender', 'name avatar');
-                
-                // Emit the message to each of the recipient's connected devices
-                recipientSockets.forEach(socketId => {
-                    io.to(socketId).emit('receiveMessage', newMessage);
-                });
-            }
-        } catch (error) {
-            console.error(`Error sending message from ${userId} to ${recipientId}:`, error);            
-            // Optionally, emit an error event back to the sender
-            socket.emit('sendMessageError', { message: 'Failed to send message.' });
+        
+        if (!recipientId || !content?.trim()) {
+            // Acknowledge the error back to the sender
+            if (callback) callback({ success: false, error: 'Invalid message payload.' });
+            return; 
         }
+
+        // --- Database Logic (remains the same, it's already correct) ---
+        let conversation = await Conversation.findOne({
+            participants: { $all: [senderId, recipientId] },
+        });
+        if (!conversation) {
+            conversation = await Conversation.create({ participants: [senderId, recipientId] });
+        }
+        const newMessage = await Message.create({
+            conversation: conversation._id,
+            sender: senderId,
+            content: content,
+        });
+        
+        // --- Refined Real-Time Emission Logic ---
+        await newMessage.populate('sender', 'name avatar');
+        
+        // Always acknowledge success to the sender now that the message is saved
+        if (callback) callback({ success: true, message: newMessage });
+        
+        // Emit the message only to the recipient's connected devices
+        const recipientSockets = onlineUsers[recipientId] || [];
+        recipientSockets.forEach(socketId => {
+            io.to(socketId).emit('receiveMessage', newMessage);
+        });
+
+    } catch (error) {
+        console.error(`Error handling sendMessage from user ${senderId}:`, error);
+        if (callback) callback({ success: false, error: 'Failed to send message.' });
+    }
+});
+
+    // --- Handle typing indicators ---
+    socket.on('startTyping', (data) => {
+        const { recipientId } = data;
+        const recipientSockets = onlineUsers[recipientId] || [];
+        recipientSockets.forEach(socketId => {
+            io.to(socketId).emit('typing', { conversationId: data.conversationId });
+        });
     });
-      // Remove user from online users list on disconnection
+
+    socket.on('stopTyping', (data) => {
+        const { recipientId } = data;
+        const recipientSockets = onlineUsers[recipientId] || [];
+        recipientSockets.forEach(socketId => {
+            io.to(socketId).emit('stopTyping', { conversationId: data.conversationId });
+        });
+    });
+
+
+    // Remove user from online users list on disconnection
     // --- Handle disconnect ---
   socket.on('disconnect', () => {
   console.log(`User disconnected: ${socket.user.name} (Socket ID: ${socket.id})`);

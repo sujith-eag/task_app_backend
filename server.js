@@ -38,14 +38,19 @@ connectDB()
 app.set('trust proxy', 1);
 
     
-// Initializing Socket.IO with CORS configured for frontend
+
+// --- Array of allowed origins ---
+const allowedOrigins = [
+    process.env.FRONTEND_URL,    // Your production URL, e.g., https://task.sujith-eag.in
+    'http://localhost:5173'     // Your local development URL
+];
+// Initializing Socket.IO with CORS configured for allowed origins
 const io = new Server(server, {
   cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      origin: allowedOrigins,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     },
 });
-
 
 // Use authentication middleware for all incoming connections
 io.use(socketAuthMiddleware);
