@@ -1,5 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Conversation from '../models/conversationModel.js';
+import Message from '../models/messageModel.js';
+
 
 // @desc    Find or create a conversation with another user
 // @route   POST /api/conversations
@@ -36,4 +38,30 @@ export const getConversations = asyncHandler(async (req, res) => {
         .sort({ updatedAt: -1 }); // Show most recent conversations first
 
     res.status(200).json(conversations);
+});
+
+
+// @desc    Get all messages for a specific conversation
+// @route   GET /api/conversations/:id/messages
+// @access  Private
+export const getMessagesForConversation = asyncHandler(async (req, res) => {
+    // First, check if the user is a participant in the conversation to secure the endpoint
+    const conversation = await Conversation.findById(req.params.id);
+    if (!conversation || !conversation.participants.includes(req.user.id)) {
+        res.status(404);
+        throw new Error('Conversation not found or user is not a participant.');
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50; // Load 50 messages per page
+    const skip = (page - 1) * limit;
+
+    const messages = await Message.find({ conversation: req.params.id })
+        .populate('sender', 'name avatar') // Populate sender details
+        .sort({ createdAt: -1 }) // Sort descending to get the latest messages
+        .skip(skip)
+        .limit(limit);
+
+    // Send the messages reversed so they appear correctly (oldest to newest) in the slice
+    res.status(200).json(messages.reverse()); 
 });

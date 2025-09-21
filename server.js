@@ -1,8 +1,6 @@
 import express from 'express';
-
 import 'dotenv/config'; // auto-runs dotenv.config()
-// import dotenv from 'dotenv';
-// dotenv.config();
+// import dotenv from 'dotenv'; // dotenv.config();
 
 import helmet from 'helmet'; // Security headers
 import morgan from 'morgan'; // Request logger
@@ -41,7 +39,7 @@ app.set('trust proxy', 1);
 
 // --- Array of allowed origins ---
 const allowedOrigins = [
-    process.env.FRONTEND_URL,    // Your production URL, e.g., https://task.sujith-eag.in
+    process.env.FRONTEND_URL,    // Your production URL
     'http://localhost:5173'     // Your local development URL
 ];
 // Initializing Socket.IO with CORS configured for allowed origins
@@ -101,7 +99,3 @@ const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => console.log(
     `Server listening on ${PORT}`
   ));
-
-// app.listen(PORT, () => console.log
-//   (`Server listening on ${PORT}`)
-// );
