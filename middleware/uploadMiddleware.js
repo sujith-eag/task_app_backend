@@ -14,6 +14,7 @@ const allowedMimeTypes = [
     'text/css',             
     'text/html',      
     'application/json',
+    'application/zip',
 ];
 
 
