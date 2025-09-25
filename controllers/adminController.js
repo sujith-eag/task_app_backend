@@ -5,12 +5,21 @@ import ClassSession from '../models/classSessionModel.js';
 import Feedback from '../models/feedbackModel.js';
 
 
-// Joi schema for validating faculty promotion data
+// Joi Schema for the initial promotion to a faculty role
 const facultyPromotionSchema = Joi.object({
     role: Joi.string().valid('teacher', 'hod').required(),
     staffId: Joi.string().trim().required(),
     department: Joi.string().trim().required(),
 });
+
+// Joi Schema for adding/updating a teacher's subject assignment
+const teacherAssignmentSchema = Joi.object({
+    subject: Joi.string().hex().length(24).required(), // Subject ID
+    sections: Joi.array().items(Joi.string()).min(1).required(), // e.g., ['A', 'B']
+    batch: Joi.number().integer().required(),
+});
+
+
 
 // @desc    Get all pending student applications
 // @route   GET /api/admin/applications
@@ -18,10 +27,14 @@ const facultyPromotionSchema = Joi.object({
 export const getPendingApplications = asyncHandler(async (req, res) => {
     const applications = await User.find({
         'studentDetails.applicationStatus': 'pending'
-    }).select('name email studentDetails');
+    })
+    .select('name email studentDetails');
+    // Being explicit about which nested fields to select
+    // .select('name email studentDetails.usn studentDetails.batch studentDetails.section');
 
     res.status(200).json(applications);
 });
+
 
 
 // @desc    Approve or reject a student application
@@ -101,7 +114,7 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
     user.teacherDetails = {
         staffId,
         department,
-        subjectsTaught: user.teacherDetails?.subjectsTaught || [], // Preserve subjects if already a teacher
+        assignments: [],
     };
     
     // Clear student data if they were a student before promotion
@@ -121,6 +134,41 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
     });
 });
 
+
+// @desc    Add or update a teacher's subject assignments
+// @route   POST /api/v1/admin/teachers/:teacherId/assignments
+// @access  Private/Admin
+export const updateTeacherAssignments = asyncHandler(async (req, res) => {
+    const { error, value } = teacherAssignmentSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+
+    const teacher = await User.findById(req.params.teacherId);
+
+    if (!teacher || teacher.role !== 'teacher') {
+        res.status(404);
+        throw new Error('Teacher not found.');
+    }
+
+    // This logic adds a new assignment. A more complex implementation
+    // could also handle updating existing assignments.
+    teacher.teacherDetails.assignments.push(value);
+    
+    await teacher.save();
+    
+    // Populate the subject details for a more informative response
+    const updatedTeacher = await User.findById(req.params.teacherId).populate({
+        path: 'teacherDetails.assignments.subject',
+        select: 'name subjectCode'
+    });
+
+    res.status(200).json({
+        message: 'Teacher assignment updated successfully.',
+        teacherDetails: updatedTeacher.teacherDetails,
+    });
+});
 
 
 

@@ -6,7 +6,7 @@ import {
     submitFeedback,
     getStudentDashboardStats
 } from '../controllers/studentController.js';
-import { apiLimiter } from '../middleware/rateLimiter.js'; // Use a general limiter here
+import { generalApiLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ router.use(protect, isStudent);
 // --- Routes ---
 
 // A stricter rate limit can be applied here to prevent code spamming
-router.post('/attendance/mark', apiLimiter, markAttendance);
+router.post('/attendance/mark', generalApiLimiter, markAttendance);
 
 router.post('/feedback', submitFeedback);
 

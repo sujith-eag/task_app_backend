@@ -6,7 +6,8 @@ import {
     reviewApplication,
     promoteToFaculty,
     getAttendanceStats,
-    getFeedbackSummary
+    getFeedbackSummary,
+    updateTeacherAssignments
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -22,6 +23,11 @@ router.route('/users/:userId/promote')
     .patch(protect, isAdmin, promoteToFaculty);
 
 
+// --- Route for managing teacher assignments ---
+router.route('/teachers/:teacherId/assignments')
+    .post(protect, isAdmin, updateTeacherAssignments);
+
+    
 // --- Reporting & Statistics (Admin & HOD) ---
 router.route('/attendance-stats')
     .get(protect, isAdminOrHOD, getAttendanceStats);

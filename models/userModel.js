@@ -1,5 +1,15 @@
 import mongoose from "mongoose";
 
+const assignmentSchema = new mongoose.Schema({
+    subject: { 
+	    type: mongoose.Schema.Types.ObjectId, 
+	    ref: 'Subject', 
+	    required: true },
+    sections: [{ type: String }], // e.g., ['A', 'B']
+    batch: { type: Number }
+});
+
+
 const userSchema = mongoose.Schema(
   {
     name: { 
@@ -75,20 +85,17 @@ const userSchema = mongoose.Schema(
     teacherDetails: {
       staffId: { type: String, unique: true, sparse: true },
       department: { type: String },
-      subjectsTaught: [{ 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Subject' 
-		  }],
+      assignments: [assignmentSchema],
+      // subjectsTaught: [{ 
+      //   type: mongoose.Schema.Types.ObjectId, 
+      //   ref: 'Subject' 
+		  // }],
     },
   }, 
   { timestamps: true }
 );
 
-// Indexing for faster queries
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
-userSchema.index({ 'studentDetails.usn': 1 });
-userSchema.index({ 'teacherDetails.staffId': 1 });
 
 const User = mongoose.model("User", userSchema);
 export default User;

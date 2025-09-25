@@ -164,6 +164,9 @@ export const loginUser = asyncHandler(async (req, res) => {
             avatar: user.avatar,
             bio: user.bio,
             preferences: user.preferences,
+
+            studentDetails: user.studentDetails,
+            teacherDetails: user.teacherDetails,
             token: generateJWTtoken(user._id)
         });
     } else {
