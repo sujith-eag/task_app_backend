@@ -39,24 +39,3 @@ export const protect = asyncHandler(async (req, res, next) => {
         throw new Error('Not authorized, no token');
     }
 });
-
-
-
-// Role-based access control middleware
-// @param {...string} roles - allowed roles
-
-export const authorizeRoles = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      res.status(401);
-      throw new Error('Not authorized');
-    }
-
-    if (!roles.includes(req.user.role)) {
-      res.status(403);
-      throw new Error('You do not have permission to perform this action');
-    }
-
-    next();
-  };
-};

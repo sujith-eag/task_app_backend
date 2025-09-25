@@ -15,6 +15,7 @@ import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import aiTaskRoutes from './routes/aiTaskRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 import errorHandler from './middleware/errorMiddleware.js';
 import connectDB from './connect/database.js';
@@ -46,7 +47,7 @@ const allowedOrigins = [
 const io = new Server(server, {
   cors: {
       origin: allowedOrigins,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     },
 });
 
@@ -83,6 +84,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/ai', aiTaskRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/admin', adminRoutes);
+
 
 // --- 404 for undefined routes ---
 app.use((req, res, next) => {
