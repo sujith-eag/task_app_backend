@@ -55,26 +55,40 @@ export const uploadFiles = asyncHandler(async (req, res) => {
 
 
 
-// @desc    Get all files owned by or shared with the user
+// @desc    Get all files owned by or shared with the user (including class shares)
 // @route   GET /api/files
 // @access  Private
 export const getUserFiles = asyncHandler(async (req, res) => {
-    
-    const loggedInUserId = req.user.id;
-    // Find all files where the user is the owner OR is in the sharedWith array.
-    const files = await File.find({
-        $or: [
-            { user: loggedInUserId }, 
-            { sharedWith: loggedInUserId }
-        ]
-    })
-    .sort({ createdAt: -1 }) // Sort by most recently created
-    .populate('user', 'name avatar'); // Populate the owner's details for frontend display
-                // replaces user id with name and avatar
+    const user = req.user;
+    let query;
 
+    // If the user is a student, create an expanded query to find files shared with their class
+    if (user.role === 'student' && user.studentDetails) {
+        query = {
+            $or: [
+                { user: user._id }, // Files they own
+                { sharedWith: user._id }, // Files shared directly with them
+                { // --- Files shared with their specific class ---
+                    'sharedWithClass.batch': user.studentDetails.batch,
+                    'sharedWithClass.section': user.studentDetails.section,
+                    'sharedWithClass.semester': user.studentDetails.semester
+                }
+            ]
+        };
+    } else {
+        // Original query for non-student roles
+        query = {
+            $or: [
+                { user: user._id },
+                { sharedWith: user._id }
+            ]
+        };
+    }
+    const files = await File.find(query)
+        .sort({ createdAt: -1 })  // Sort by most recently created
+        .populate('user', 'name avatar');  // Populate the owner's details for frontend display
     res.status(200).json(files);
 });
-
 
 
 
@@ -255,4 +269,40 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
     .populate('sharedWith', 'name avatar');
 
     res.status(200).json(updatedFile);
+});
+
+
+
+// @desc    Share a file with an entire class
+// @route   POST /api/v1/files/:id/share-class
+// @access  Private (Owner of the file)
+export const shareFileWithClass = asyncHandler(async (req, res) => {
+    const { subject, batch, semester, section } = req.body;
+    const file = await File.findById(req.params.id);
+
+    // Verify the file exists and the user is the owner
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found.');
+    }
+    if (file.user.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('You are not authorized to share this file.');
+    }
+
+    // Validate that the teacher is assigned to the subject they are sharing with
+    const teacher = await User.findById(req.user.id);
+    const isAssigned = teacher.teacherDetails.subjectsTaught.some(
+        taughtSubject => taughtSubject.toString() === subject
+    );
+    if (!isAssigned) {
+        res.status(403);
+        throw new Error('You can only share files with classes you are assigned to teach.');
+    }
+
+    // Update the file with the class sharing details
+    file.sharedWithClass = { subject, batch, semester, section };
+    await file.save();
+
+    res.status(200).json({ message: 'File has been shared with the class.' });
 });

@@ -24,7 +24,14 @@ const fileSchema = new mongoose.Schema({
     sharedWith: [{ // Array of users this file is shared with
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    }]
+    }],
+     // For sharing with an entire class dynamically
+    sharedWithClass: {
+        subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
+        batch: { type: Number },
+        semester: { type: Number },
+        section: { type: String }
+    }
 }, { timestamps: true });
 
 const File = mongoose.model("File", fileSchema);
