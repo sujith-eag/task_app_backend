@@ -1,26 +1,33 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
-import { isAdmin } from '../middleware/roleMiddleware.js';
+import { isAdmin, isAdminOrHOD } from '../middleware/roleMiddleware.js';
 import { 
     getPendingApplications,
     reviewApplication,
-    promoteToFaculty
+    promoteToFaculty,
+    getAttendanceStats,
+    getFeedbackSummary
 } from '../controllers/adminController.js';
 
 const router = express.Router();
 
-// Apply protect and isAdmin middleware to all routes in this file
-router.use(protect, isAdmin);
-
-// --- Student Application Management ---
+// --- Application & User Management (Admin Only) ---
 router.route('/applications')
-    .get(getPendingApplications);
+    .get(protect, isAdmin, getPendingApplications);
 
 router.route('/applications/:userId/review')
-    .patch(reviewApplication);
+    .patch(protect, isAdmin, reviewApplication);
 
-// --- User Role Management ---
 router.route('/users/:userId/promote')
-    .patch(promoteToFaculty);
+    .patch(protect, isAdmin, promoteToFaculty);
+
+
+// --- Reporting & Statistics (Admin & HOD) ---
+router.route('/attendance-stats')
+    .get(protect, isAdminOrHOD, getAttendanceStats);
+
+router.route('/feedback-summary')
+    .get(protect, isAdminOrHOD, getFeedbackSummary);
+
 
 export default router;

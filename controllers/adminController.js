@@ -1,6 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import User from '../models/userModel.js';
+import ClassSession from '../models/classSessionModel.js';
+import Feedback from '../models/feedbackModel.js';
 
 
 // Joi schema for validating faculty promotion data
@@ -117,4 +119,120 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
             teacherDetails: user.teacherDetails,
         }
     });
+});
+
+
+
+
+// @desc    Get aggregated attendance statistics
+// @route   GET /api/admin/attendance-stats
+// @access  Private/Admin_HOD
+export const getAttendanceStats = asyncHandler(async (req, res) => {
+    const { teacherId, subjectId, semester } = req.query;
+    const matchQuery = {};
+
+    // Build the initial match query. Mongoose will cast the string IDs automatically.
+    if (teacherId) matchQuery.teacher = teacherId;
+    if (subjectId) matchQuery.subject = subjectId;
+    if (semester) matchQuery.semester = parseInt(semester, 10);
+
+    const stats = await ClassSession.aggregate([
+        // Stage 1: Initial filter based on query parameters
+        { $match: matchQuery },
+        // Stage 2: Deconstruct the attendanceRecords array
+        { $unwind: '$attendanceRecords' },
+        // Stage 3: Group by subject and teacher to calculate stats
+        {
+            $group: {
+                _id: { subject: '$subject', teacher: '$teacher' },
+                totalStudents: { $sum: 1 },
+                presentStudents: {
+                    $sum: { $cond: [{ $eq: ['$attendanceRecords.status', true] }, 1, 0] }
+                }
+            }
+        },
+        // Stage 4: Calculate the attendance percentage
+        {
+            $project: {
+                _id: 0,
+                subject: '$_id.subject',
+                teacher: '$_id.teacher',
+                totalStudents: '$totalStudents',
+                presentStudents: '$presentStudents',
+                attendancePercentage: {
+                    $round: [
+                        { $multiply: [{ $divide: ['$presentStudents', '$totalStudents'] }, 100] },
+                        2
+                    ]
+                }
+            }
+        },
+        // Stage 5: Populate teacher and subject details for a readable output
+        { $lookup: { from: 'users', localField: 'teacher', foreignField: '_id', as: 'teacherDetails' } },
+        { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: 'subjectDetails' } },
+        // Stage 6: Final projection
+        {
+            $project: {
+                teacherName: { $arrayElemAt: ['$teacherDetails.name', 0] },
+                subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
+                subjectCode: { $arrayElemAt: ['$subjectDetails.subjectCode', 0] },
+                totalStudents: 1,
+                presentStudents: 1,
+                attendancePercentage: 1,
+            }
+        },
+        { $sort: { subjectName: 1, teacherName: 1 } }
+    ]);
+
+    res.status(200).json(stats);
+});
+
+
+// @desc    Get aggregated feedback summary
+// @route   GET /api/admin/feedback-summary
+// @access  Private/Admin_HOD
+export const getFeedbackSummary = asyncHandler(async (req, res) => {
+    const { teacherId, subjectId } = req.query;
+    const matchQuery = {};
+
+    // Mongoose will cast the string IDs automatically.
+    if (teacherId) matchQuery.teacher = teacherId;
+    if (subjectId) matchQuery.subject = subjectId;
+
+    const summary = await Feedback.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: { subject: '$subject', teacher: '$teacher' },
+                averageRating: { $avg: '$rating' },
+                feedbackCount: { $sum: 1 },
+                comments: { $push: '$comment' }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                subject: '$_id.subject',
+                teacher: '$_id.teacher',
+                averageRating: { $round: ['$averageRating', 2] },
+                feedbackCount: 1,
+                comments: 1
+            }
+        },
+        { $lookup: { from: 'users', localField: 'teacher', foreignField: '_id', as: 'teacherDetails' } },
+        { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: 'subjectDetails' } },
+        {
+            $project: {
+                teacherName: { $arrayElemAt: ['$teacherDetails.name', 0] },
+                subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
+                subjectCode: { $arrayElemAt: ['$subjectDetails.subjectCode', 0] },
+                averageRating: 1,
+                feedbackCount: 1,
+                comments: 1
+            }
+        },
+        { $sort: { averageRating: -1 } }
+    ]);
+
+    res.status(200).json(summary);
 });
