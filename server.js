@@ -16,6 +16,8 @@ import fileRoutes from './routes/fileRoutes.js';
 import aiTaskRoutes from './routes/aiTaskRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import teacherRoutes from './routes/teacherRoutes.js';
+import studentRoutes from './routes/studentRoutes.js';
 
 import errorHandler from './middleware/errorMiddleware.js';
 import connectDB from './connect/database.js';
@@ -85,7 +87,8 @@ app.use('/api/files', fileRoutes);
 app.use('/api/ai', aiTaskRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/admin', adminRoutes);
-
+app.use('/api/teacher', teacherRoutes);
+app.use('/api/student', studentRoutes);
 
 // --- 404 for undefined routes ---
 app.use((req, res, next) => {
