@@ -284,3 +284,17 @@ export const getFeedbackSummary = asyncHandler(async (req, res) => {
 
     res.status(200).json(summary);
 });
+
+
+// @desc    Get all users with the teacher role
+// @route   GET /api/v1/admin/teachers
+// @access  Private/Admin
+export const getAllTeachers = asyncHandler(async (req, res) => {
+    const teachers = await User.find({ role: 'teacher' })
+        .select('name email teacherDetails')
+        .populate({
+            path: 'teacherDetails.assignments.subject',
+            select: 'name subjectCode'
+        });
+    res.status(200).json(teachers);
+});
