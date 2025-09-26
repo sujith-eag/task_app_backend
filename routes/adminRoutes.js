@@ -11,7 +11,8 @@ import {
     updateTeacherAssignments,
     deleteTeacherAssignment,
     getAllTeachers,
-    updateStudentDetails
+    updateStudentDetails,
+    updateStudentEnrollment
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -43,8 +44,11 @@ router.route('/teachers/:teacherId/assignments/:assignmentId')
 
 router.route('/students/:studentId')
     .put(protect, isAdmin, updateStudentDetails);
-    
-// --- Reporting & Statistics (Admin & HOD) ---
+
+router.route('/students/:studentId/enrollment')
+    .put(protect, isAdmin, updateStudentEnrollment);
+
+    // --- Reporting & Statistics (Admin & HOD) ---
 router.route('/attendance-stats')
     .get(protect, isAdminOrHOD, getAttendanceStats);
 

@@ -10,11 +10,15 @@ import Subject from '../models/subjectModel.js';
 const updateStudentSchema = Joi.object({
     usn: Joi.string().trim().optional(),
     batch: Joi.number().integer().min(2000).optional(),
-    section: Joi.string().trim().valid('A', 'B', 'C').optional()
+    section: Joi.string().trim().valid('A', 'B', 'C').optional(),
+    semester: Joi.number().integer().min(1).max(4).optional()
 }).min(1).messages({ // Requires at least one key to be present
-    'object.min': 'At least one field (usn, batch, or section) must be provided to update.'
+    'object.min': 'At least one field (usn, batch, semester or section) must be provided to update.'
 });
 
+const updateEnrollmentSchema = Joi.object({
+    subjectIds: Joi.array().items(Joi.string().hex().length(24)).required()
+});
 
 const facultyPromotionSchema = Joi.object({
     role: Joi.string().valid('teacher', 'hod').required(),
@@ -27,6 +31,7 @@ const teacherAssignmentSchema = Joi.object({
     subject: Joi.string().hex().length(24).required(), // Subject ID
     sections: Joi.array().items(Joi.string()).min(1).required(), // e.g., ['A', 'B']
     batch: Joi.number().integer().required(),
+    semester: Joi.number().integer().min(1).max(4).required()
 });
 
 
@@ -120,6 +125,35 @@ export const getUsersByRole = asyncHandler(async (req, res) => {
 
 
 
+// @desc    Update a student's enrolled subjects
+// @route   PUT /api/admin/students/:studentId/enrollment
+// @access  Private/Admin
+export const updateStudentEnrollment = asyncHandler(async (req, res) => {
+    const { error, value } = updateEnrollmentSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+
+    const student = await User.findById(req.params.studentId);
+
+    if (!student || student.role !== 'student') {
+        res.status(404);
+        throw new Error('Student not found.');
+    }
+    
+    // Replace the existing enrolled subjects with the new array
+    student.studentDetails.enrolledSubjects = value.subjectIds;
+    
+    await student.save();
+    
+    res.status(200).json({
+        message: 'Student enrollment updated successfully.',
+        enrolledSubjects: student.studentDetails.enrolledSubjects
+    });
+});
+
+
 // @desc    Promote a user to a faculty role (teacher/hod)
 // @route   PATCH /api/admin/users/:userId/promote
 // @access  Private/Admin
@@ -189,9 +223,22 @@ export const updateTeacherAssignments = asyncHandler(async (req, res) => {
 
     const teacher = await User.findById(req.params.teacherId);
     // Allow assigning subjects to both teachers and HODs
-    if (!teacher || teacher.role !== 'teacher') {
+    if (!teacher || !['teacher', 'hod'].includes(teacher.role)) {
         res.status(404);
         throw new Error('Teacher not found.');
+    }
+
+    // --- DUPLICATION CHECK ---
+    const assignmentExists = teacher.teacherDetails.assignments.some(
+        (assign) =>
+            assign.subject.toString() === value.subject &&
+            assign.batch === value.batch &&
+            assign.semester === value.semester &&
+            JSON.stringify(assign.sections.sort()) === JSON.stringify(value.sections.sort())
+    );
+    if (assignmentExists) {
+        res.status(400);
+        throw new Error('This exact assignment already exists for this teacher.');
     }
 
     // This logic adds a new assignment.
