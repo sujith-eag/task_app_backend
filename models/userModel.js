@@ -5,8 +5,9 @@ const assignmentSchema = new mongoose.Schema({
 	    type: mongoose.Schema.Types.ObjectId, 
 	    ref: 'Subject', 
 	    required: true },
+    batch: { type: Number },
+    semester: { type: Number },
     sections: [{ type: String }], // e.g., ['A', 'B']
-    batch: { type: Number }
 });
 
 
@@ -69,14 +70,16 @@ const userSchema = mongoose.Schema(
     // --- Role-Specific Details ---
     studentDetails: {
       usn: { type: String, unique: true, sparse: true }, // University Seat Number
-      isStudentVerified: { type: Boolean, default: false },
-      section: { type: String, enum: ['A', 'B', 'C'] },
-      batch: { type: Number },
       applicationStatus: {
         type: String,
         enum: ['not_applied', 'pending', 'approved', 'rejected'],
         default: 'not_applied'
       },
+      isStudentVerified: { type: Boolean, default: false },
+
+      section: { type: String, enum: ['A', 'B', 'C'] },
+      batch: { type: Number },
+      semester: { type: Number },
       enrolledSubjects: [{ 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Subject' }],

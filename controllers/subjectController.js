@@ -2,6 +2,7 @@ import Subject from '../models/subjectModel.js';
 import User from '../models/userModel.js';
 import asyncHandler from 'express-async-handler';
 
+
 // @desc    Create a new subject
 // @route   POST /api/admin/subjects
 // @access  Private/Admin
@@ -11,8 +12,9 @@ export const createSubject = asyncHandler(async (req, res) => {
     // Basic validation
     if (!name || !subjectCode || !semester || !department ) {
         res.status(400);
-        throw new Error('Please provide all required fields: name, subjectCode, semester, department, and teachers.');
+        throw new Error('Please provide all required fields: name, subjectCode, semester and department.');
     }
+
     // Check if subject code already exists
     const subjectExists = await Subject.findOne({ subjectCode });
     if (subjectExists) {
@@ -44,8 +46,8 @@ export const getSubjects = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/subjects/:id
 // @access  Private/Admin
 export const getSubjectById = asyncHandler(async (req, res) => {
-    const subject = await Subject.findById(req.params.id).populate('teachers', 'name email');
 
+    const subject = await Subject.findById(req.params.id);
     if (subject) {
         res.status(200).json(subject);
     } else {
@@ -86,6 +88,12 @@ export const deleteSubject = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Subject not found.');
     }
+
+    // Before deleting the subject, remove any teacher assignments that reference it.
+    await User.updateMany(
+        {}, 
+        { $pull: { 'teacherDetails.assignments': { subject: subject._id } } }
+    );
 
     // Delete the subject
     await subject.deleteOne();

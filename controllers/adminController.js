@@ -3,7 +3,7 @@ import Joi from 'joi';
 import User from '../models/userModel.js';
 import ClassSession from '../models/classSessionModel.js';
 import Feedback from '../models/feedbackModel.js';
-
+import Subject from '../models/subjectModel.js';
 
 // Joi Schema for the initial promotion to a faculty role
 const facultyPromotionSchema = Joi.object({
@@ -86,7 +86,7 @@ export const reviewApplication = asyncHandler(async (req, res) => {
 
 
 // @desc    Promote a user to a faculty role (teacher/hod)
-// @route   PATCH /api/v1/admin/users/:userId/promote
+// @route   PATCH /api/admin/users/:userId/promote
 // @access  Private/Admin
 export const promoteToFaculty = asyncHandler(async (req, res) => {
     const { error, value } = facultyPromotionSchema.validate(req.body);
@@ -136,7 +136,7 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
 
 
 // @desc    Add or update a teacher's subject assignments
-// @route   POST /api/v1/admin/teachers/:teacherId/assignments
+// @route   POST /api/admin/teachers/:teacherId/assignments
 // @access  Private/Admin
 export const updateTeacherAssignments = asyncHandler(async (req, res) => {
     const { error, value } = teacherAssignmentSchema.validate(req.body);
@@ -145,15 +145,21 @@ export const updateTeacherAssignments = asyncHandler(async (req, res) => {
         throw new Error(error.details[0].message);
     }
 
-    const teacher = await User.findById(req.params.teacherId);
+    // Validate that the subject exists before assigning it
+    const subjectExists = await Subject.findById(value.subject);
+    if (!subjectExists) {
+        res.status(400);
+        throw new Error('Invalid Subject ID. Subject does not exist.');
+    }
 
+    const teacher = await User.findById(req.params.teacherId);
+    // Allow assigning subjects to both teachers and HODs
     if (!teacher || teacher.role !== 'teacher') {
         res.status(404);
         throw new Error('Teacher not found.');
     }
 
-    // This logic adds a new assignment. A more complex implementation
-    // could also handle updating existing assignments.
+    // This logic adds a new assignment.
     teacher.teacherDetails.assignments.push(value);
     
     await teacher.save();
@@ -164,9 +170,41 @@ export const updateTeacherAssignments = asyncHandler(async (req, res) => {
         select: 'name subjectCode'
     });
 
-    res.status(200).json({
+    res.status(201).json({  // 201 for adding a new resource
         message: 'Teacher assignment updated successfully.',
         teacherDetails: updatedTeacher.teacherDetails,
+    });
+});
+
+
+
+// @desc    Delete a teacher's subject assignment
+// @route   DELETE /api/admin/teachers/:teacherId/assignments/:assignmentId
+// @access  Private/Admin
+export const deleteTeacherAssignment = asyncHandler(async (req, res) => {
+    const { teacherId, assignmentId } = req.params;
+
+    const teacher = await User.findById(teacherId);
+
+    if (!teacher || !['teacher', 'hod'].includes(teacher.role)) {
+        res.status(404);
+        throw new Error('Faculty member not found.');
+    }
+
+    // Check if the assignment exists before trying to remove it
+    const assignment = teacher.teacherDetails.assignments.id(assignmentId);
+    if (!assignment) {
+        res.status(404);
+        throw new Error('Assignment not found for this faculty member.');
+    }
+    
+    // Use the .pull() method to remove the subdocument by its _id
+    teacher.teacherDetails.assignments.pull(assignmentId);
+
+    await teacher.save();
+
+    res.status(200).json({
+        message: 'Assignment removed successfully.',
     });
 });
 
@@ -179,7 +217,6 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
     const { teacherId, subjectId, semester } = req.query;
     const matchQuery = {};
 
-    // Build the initial match query. Mongoose will cast the string IDs automatically.
     if (teacherId) matchQuery.teacher = teacherId;
     if (subjectId) matchQuery.subject = subjectId;
     if (semester) matchQuery.semester = parseInt(semester, 10);
@@ -236,6 +273,7 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
 });
 
 
+
 // @desc    Get aggregated feedback summary
 // @route   GET /api/admin/feedback-summary
 // @access  Private/Admin_HOD
@@ -243,7 +281,6 @@ export const getFeedbackSummary = asyncHandler(async (req, res) => {
     const { teacherId, subjectId } = req.query;
     const matchQuery = {};
 
-    // Mongoose will cast the string IDs automatically.
     if (teacherId) matchQuery.teacher = teacherId;
     if (subjectId) matchQuery.subject = subjectId;
 
@@ -286,11 +323,11 @@ export const getFeedbackSummary = asyncHandler(async (req, res) => {
 });
 
 
-// @desc    Get all users with the teacher role
-// @route   GET /api/v1/admin/teachers
+// @desc    Get all users with the teacher or hod role
+// @route   GET /api/admin/teachers
 // @access  Private/Admin
 export const getAllTeachers = asyncHandler(async (req, res) => {
-    const teachers = await User.find({ role: 'teacher' })
+    const teachers = await User.find({ role: { $in: ['teacher', 'hod'] } })
         .select('name email teacherDetails')
         .populate({
             path: 'teacherDetails.assignments.subject',

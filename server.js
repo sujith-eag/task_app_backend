@@ -62,11 +62,11 @@ io.on('connection', (socket) => {
   console.log(`User connected: ${socket.user.name} (Socket ID: ${socket.id})`);
   handleConnection(socket, io);
 });
-  
+
 // --- Core Middleware ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cors());
+app.use(cors({ origin: allowedOrigins }));
 
 // --- Security & Logging Middleware ---
   // Setting security HTTP headers

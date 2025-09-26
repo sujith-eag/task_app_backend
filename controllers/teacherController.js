@@ -2,7 +2,6 @@ import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import User from '../models/userModel.js';
 import ClassSession from '../models/classSessionModel.js';
-import Subject from '../models/subjectModel.js';
 
 // --- Helper Function ---
 const generateAttendanceCode = () => {
@@ -26,8 +25,8 @@ const createSessionSchema = Joi.object({
 // @access  Private/Teacher
 export const getClassCreationData = asyncHandler(async (req, res) => {
     const teacher = await User.findById(req.user.id).populate({
-        path: 'teacherDetails.subjectsTaught',
-        select: 'name subjectCode semester department'
+        path: 'teacherDetails.assignments.subject',
+        select: 'name subjectCode semester'
     });
 
     if (!teacher || !teacher.teacherDetails) {
@@ -36,7 +35,7 @@ export const getClassCreationData = asyncHandler(async (req, res) => {
     }
 
     res.status(200).json({
-        subjects: teacher.teacherDetails.subjectsTaught,
+        subjects: teacher.teacherDetails.assignments,
     });
 });
 
@@ -53,14 +52,20 @@ export const createClassSession = asyncHandler(async (req, res) => {
     }
     const { subject, type, batch, semester, section } = value;
 
-    // Security Check: Verify the teacher is assigned to this subject
     const teacher = await User.findById(req.user.id);
-    const isAssigned = teacher.teacherDetails.subjectsTaught.some(
-        taughtSubject => taughtSubject.toString() === subject
+
+    // Security Check: Verify the teacher has a matching and complete assignment.
+    const isAssigned = teacher.teacherDetails.assignments.some(
+        assignment =>
+            assignment.subject.toString() === subject &&
+            assignment.batch === batch &&
+            assignment.semester === semester &&
+            assignment.sections.includes(section)
     );
+
     if (!isAssigned) {
         res.status(403); // Forbidden
-        throw new Error('You are not authorized to start a session for this subject.');
+        throw new Error('You are not assigned to teach this subject for the specified batch, semester, and section.');
     }
 
     // Fetch the student roster for the class

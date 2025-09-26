@@ -8,6 +8,7 @@ import {
     getAttendanceStats,
     getFeedbackSummary,
     updateTeacherAssignments,
+    deleteTeacherAssignment,
     getAllTeachers
 } from '../controllers/adminController.js';
 
@@ -25,10 +26,15 @@ router.route('/users/:userId/promote')
 
 router.route('/teachers').get(protect, isAdmin, getAllTeachers);    
 
+
 // --- Route for managing teacher assignments ---
 router.route('/teachers/:teacherId/assignments')
     .post(protect, isAdmin, updateTeacherAssignments);
 
+    router.route('/teachers/:teacherId/assignments/:assignmentId')
+    .delete(protect, isAdmin, deleteTeacherAssignment);
+
+    
     
 // --- Reporting & Statistics (Admin & HOD) ---
 router.route('/attendance-stats')

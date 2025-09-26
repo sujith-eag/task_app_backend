@@ -13,9 +13,6 @@ const router = express.Router();
 // Apply protect and isStudent middleware to all routes in this file
 router.use(protect, isStudent);
 
-// --- Routes ---
-
-// A stricter rate limit can be applied here to prevent code spamming
 router.post('/attendance/mark', generalApiLimiter, markAttendance);
 
 router.post('/feedback', submitFeedback);
