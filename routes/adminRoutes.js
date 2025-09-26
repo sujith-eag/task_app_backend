@@ -4,12 +4,14 @@ import { isAdmin, isAdminOrHOD } from '../middleware/roleMiddleware.js';
 import { 
     getPendingApplications,
     reviewApplication,
+    getUsersByRole,
     promoteToFaculty,
     getAttendanceStats,
     getFeedbackSummary,
     updateTeacherAssignments,
     deleteTeacherAssignment,
-    getAllTeachers
+    getAllTeachers,
+    updateStudentDetails
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -21,20 +23,26 @@ router.route('/applications')
 router.route('/applications/:userId/review')
     .patch(protect, isAdmin, reviewApplication);
 
+router.route('/users')
+    .get(protect, isAdmin, getUsersByRole);
+
 router.route('/users/:userId/promote')
     .patch(protect, isAdmin, promoteToFaculty);
 
-router.route('/teachers').get(protect, isAdmin, getAllTeachers);    
+router.route('/teachers')
+    .get(protect, isAdmin, getAllTeachers);    
 
 
 // --- Route for managing teacher assignments ---
 router.route('/teachers/:teacherId/assignments')
     .post(protect, isAdmin, updateTeacherAssignments);
 
-    router.route('/teachers/:teacherId/assignments/:assignmentId')
+router.route('/teachers/:teacherId/assignments/:assignmentId')
     .delete(protect, isAdmin, deleteTeacherAssignment);
 
-    
+
+router.route('/students/:studentId')
+    .put(protect, isAdmin, updateStudentDetails);
     
 // --- Reporting & Statistics (Admin & HOD) ---
 router.route('/attendance-stats')

@@ -6,6 +6,16 @@ import Feedback from '../models/feedbackModel.js';
 import Subject from '../models/subjectModel.js';
 
 // Joi Schema for the initial promotion to a faculty role
+
+const updateStudentSchema = Joi.object({
+    usn: Joi.string().trim().optional(),
+    batch: Joi.number().integer().min(2000).optional(),
+    section: Joi.string().trim().valid('A', 'B', 'C').optional()
+}).min(1).messages({ // Requires at least one key to be present
+    'object.min': 'At least one field (usn, batch, or section) must be provided to update.'
+});
+
+
 const facultyPromotionSchema = Joi.object({
     role: Joi.string().valid('teacher', 'hod').required(),
     staffId: Joi.string().trim().required(),
@@ -83,6 +93,31 @@ export const reviewApplication = asyncHandler(async (req, res) => {
         },
     });
 });
+
+
+// @desc    Get users by their role
+// @route   GET /api/admin/users?role=user
+// @access  Private/Admin
+export const getUsersByRole = asyncHandler(async (req, res) => {
+    const { role } = req.query;
+
+    if (!role) {
+        res.status(400);
+        throw new Error('A "role" query parameter is required ( ?role=user).');
+    }
+
+    const validRoles = ['user', 'student', 'teacher', 'hod'];
+    if (!validRoles.includes(role)) {
+        res.status(400);
+        throw new Error(`Invalid role specified. Must be one of: ${validRoles.join(', ')}`);
+    }
+
+    // Find users and select fields relevant for management lists
+    const users = await User.find({ role }).select('name email studentDetails');
+
+    res.status(200).json(users);
+});
+
 
 
 // @desc    Promote a user to a faculty role (teacher/hod)
@@ -334,4 +369,37 @@ export const getAllTeachers = asyncHandler(async (req, res) => {
             select: 'name subjectCode'
         });
     res.status(200).json(teachers);
+});
+
+
+
+// @desc    Update a student's details by an admin
+// @route   PUT /api/admin/students/:studentId
+// @access  Private/Admin
+export const updateStudentDetails = asyncHandler(async (req, res) => {
+    // Validate the incoming data
+    const { error, value } = updateStudentSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+
+    // Find the user and confirm they are a student
+    const student = await User.findById(req.params.studentId);
+
+    if (!student || student.role !== 'student') {
+        res.status(404);
+        throw new Error('Student not found.');
+    }
+
+    // Update only the provided details
+    Object.assign(student.studentDetails, value);
+    
+    await student.save();
+
+    // Respond with the updated details
+    res.status(200).json({
+        message: 'Student details updated successfully.',
+        studentDetails: student.studentDetails
+    });
 });
