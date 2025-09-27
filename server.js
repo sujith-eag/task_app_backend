@@ -54,6 +54,8 @@ const io = new Server(server, {
     },
 });
 
+export { io };
+
 // Use authentication middleware for all incoming connections
 io.use(socketAuthMiddleware);
 

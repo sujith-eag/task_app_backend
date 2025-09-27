@@ -1,8 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
-import User from '../models/userModel.js';
 import ClassSession from '../models/classSessionModel.js';
 import Feedback from '../models/feedbackModel.js';
+import { io } from '../server.js';
 
 // Joi schema for marking attendance
 const markAttendanceSchema = Joi.object({
@@ -54,11 +54,25 @@ export const markAttendance = asyncHandler(async (req, res) => {
         return res.status(200).json({ message: 'Attendance already marked.' });
     }
 
-    // Update the student's status to present
-    await ClassSession.updateOne(
-        { _id: session._id, 'attendanceRecords.student': req.user.id },
-        { $set: { 'attendanceRecords.$.status': true } }
-    );
+    studentRecord.status = true;
+    await session.save(); // Save the entire session document
+
+    
+    // After saving, emit a real-time event to the specific class session's "room"
+    // The room name can be based on the session ID.
+    const room = `session-${session._id}`;
+    io.to(room).emit('student-checked-in', { 
+        student: req.user._id, 
+        name: req.user.name, 
+        usn: req.user.studentDetails.usn,
+        status: true 
+    });
+    
+    // // Update the student's status to present
+    // await ClassSession.updateOne(
+    //     { _id: session._id, 'attendanceRecords.student': req.user.id },
+    //     { $set: { 'attendanceRecords.$.status': true } }
+    // );
 
     res.status(200).json({ message: 'Attendance marked successfully!' });
 });
