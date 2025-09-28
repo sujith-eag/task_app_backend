@@ -151,23 +151,19 @@ export const changePassword = asyncHandler(async (req, res) => {
 });
 
 
-
 // @desc    Get a list of users who are discoverable
 // @route   GET /api/users/discoverable
 // @access  Private
 export const getDiscoverableUsers = asyncHandler(async (req, res) => {
-    // Find users who are discoverable and are not the current user
-    const users = await User.find({ 
+    // Find users who are discoverable, verified, and not the current user
+    const users = await User.find({
         'preferences.isDiscoverable': true,
-        '_id': { $ne: req.user.id } 
-        // Exclude the user making the request
-    }).select('name avatar'); 
-    // Selecting only public-facing fields for privacy
+        'isVerified': true,
+        '_id': { $ne: req.user.id } // Exclude the user making the request
+    }).select('name avatar'); // Selecting only public-facing fields for privacy
 
     res.status(200).json(users);
 });
-
-
 
 
 // @desc    Update a user's avatar
