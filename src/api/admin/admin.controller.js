@@ -100,7 +100,7 @@ export const reviewApplication = asyncHandler(async (req, res) => {
 });
 
 
-// @desc    Get users by their role
+// @desc    Get users by their role (verified only)
 // @route   GET /api/admin/users?role=user
 // @access  Private/Admin
 export const getUsersByRole = asyncHandler(async (req, res) => {
@@ -118,7 +118,10 @@ export const getUsersByRole = asyncHandler(async (req, res) => {
     }
 
     // Find users and select fields relevant for management lists
-    const users = await User.find({ role }).select('name email studentDetails');
+    const users = await User.find({ 
+        role: role,
+        isVerified: true,
+    }).select('name email studentDetails');
 
     res.status(200).json(users);
 });

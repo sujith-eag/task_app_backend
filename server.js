@@ -89,7 +89,7 @@ if (process.env.NODE_ENV === 'development') {
 // --- API Route Mounting ---
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/auth', authRoutes);   // Needs to be configured
+app.use('/api/auth', authRoutes);
 app.use('/api/chat', conversationRoutes);  // For RESTful chat actions
 app.use('/api/files', fileRoutes);
 app.use('/api/college/students', studentRoutes);

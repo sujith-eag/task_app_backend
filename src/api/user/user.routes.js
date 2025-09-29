@@ -8,7 +8,7 @@ import {
 
 // --- middleware ---
 import { protect } from '../../middleware/auth.middleware.js';
-import avatarUpload from '../../middleware/file.middleware.js';
+import { uploadAvatar } from '../../middleware/file.middleware.js';
 
 import { MulterError } from 'multer';
 
@@ -35,7 +35,7 @@ router.route('/me')
 router.put('/password', changePassword);
 
 router.put( '/me/avatar',
-    avatarUpload,
+    uploadAvatar,
     updateUserAvatar,
     avatarErrorHandler, // To catch when error Occurrs, before reaching Global
 );
