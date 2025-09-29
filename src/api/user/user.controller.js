@@ -2,10 +2,10 @@ import asyncHandler from 'express-async-handler';
 import bcrypt from 'bcryptjs';
 import Joi from 'joi';
 
-import User from '../models/userModel.js';
+import User from '../../models/userModel.js';
 
-import { deleteFile as deleteFromS3 } from '../utils/s3Service.js';
-import { uploadFile as uploadToS3 } from '../utils/s3Service.js';
+import { deleteFile as deleteFromS3 } from '../../services/s3.service.js';
+import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
 
 
 

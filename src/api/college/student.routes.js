@@ -5,7 +5,7 @@ import {
     markAttendance,
     submitFeedback,
     getStudentDashboardStats
-} from '../controllers/studentController.js';
+} from '../controllers/student.controller.js';
 import { generalApiLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
