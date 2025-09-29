@@ -1,6 +1,7 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
-import { isAdmin, isAdminOrHOD } from '../middleware/roleMiddleware.js';
+import { protect } from '../../middleware/auth.middleware.js';
+import { isAdmin, isAdminOrHOD } from '../../middleware/role.middleware.js';
+
 import { 
     getPendingApplications,
     reviewApplication,
@@ -13,7 +14,7 @@ import {
     getAllTeachers,
     updateStudentDetails,
     updateStudentEnrollment
-} from '../controllers/adminController.js';
+} from './admin.controller.js';
 
 const router = express.Router();
 

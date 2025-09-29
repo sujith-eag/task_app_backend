@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
-import ClassSession from '../models/classSessionModel.js';
-import Feedback from '../models/feedbackModel.js';
+import ClassSession from '../../models/classSessionModel.js';
+import Feedback from '../../models/feedbackModel.js';
 import { io } from '../../../server.js';
 
 // Joi schema for marking attendance

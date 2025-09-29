@@ -4,9 +4,9 @@ import {
   getTasks, 
   createTask, createBulkTasks, updateTask, deleteTask,
   addSubTask, updateSubTask, deleteSubTask,
-} from '../controllers/taskController.js';
+} from './task.controller.js';
 
-import { protect } from '../middleware/authMiddleware.js';
+import { protect } from '../../middleware/auth.middleware.js';
 
 const router = express.Router();
 

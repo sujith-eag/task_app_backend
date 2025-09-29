@@ -1,12 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
-import { isStudent } from '../middleware/roleMiddleware.js';
+import { protect } from '../../middleware/auth.middleware.js';
+import { isStudent } from '../../middleware/role.middleware.js';
+import { generalApiLimiter } from '../../middleware/rateLimiter.middleware.js';
+
 import {
     markAttendance,
     submitFeedback,
     getStudentDashboardStats
-} from '../controllers/student.controller.js';
-import { generalApiLimiter } from '../middleware/rateLimiter.js';
+} from './student.controller.js';
 
 const router = express.Router();
 

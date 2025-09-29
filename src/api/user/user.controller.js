@@ -8,7 +8,6 @@ import { deleteFile as deleteFromS3 } from '../../services/s3.service.js';
 import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
 
 
-
 // Joi Schema for profile updates
 const updateUserSchema = Joi.object({
     name: Joi.string().trim().min(2).max(50).optional(),

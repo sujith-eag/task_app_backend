@@ -1,9 +1,9 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
-import User from '../models/userModel.js';
-import ClassSession from '../models/classSessionModel.js';
-import Feedback from '../models/feedbackModel.js';
-import Subject from '../models/subjectModel.js';
+import User from '../../models/userModel.js';
+import ClassSession from '../../models/classSessionModel.js';
+import Feedback from '../../models/feedbackModel.js';
+import Subject from '../../models/subjectModel.js';
 
 // Joi Schema for the initial promotion to a faculty role
 

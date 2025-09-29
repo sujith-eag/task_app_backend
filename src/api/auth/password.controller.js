@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import Joi from 'joi';
 import bcrypt from 'bcryptjs';
 
-import User from '../models/userModel.js';
-import { sendEmail } from '../utils/emailService.js';
+import User from '../../models/userModel.js';
+import { sendEmail } from '../../services/email.service.js';
 
 // --- Joi Validation Schemas ---
 

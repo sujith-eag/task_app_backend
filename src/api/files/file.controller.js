@@ -1,12 +1,12 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 
-import { uploadFile as uploadToS3 } from '../utils/s3Service.js';
-import { getSignedUrl as getS3SignedUrl } from '../utils/s3Service.js';
-import { deleteFile as deleteFromS3 } from '../utils/s3Service.js';
+import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
+import { getSignedUrl as getS3SignedUrl } from '../../services/s3.service.js';
+import { deleteFile as deleteFromS3 } from '../../services/s3.service.js';
 
-import File from '../models/fileModel.js';
-import User from '../models/userModel.js';
+import File from '../../models/fileModel.js';
+import User from '../../models/userModel.js';
 
 
 const shareFileSchema = Joi.object({

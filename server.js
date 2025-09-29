@@ -6,22 +6,25 @@ import helmet from 'helmet'; // Security headers
 import morgan from 'morgan'; // Request logger
 import cors from 'cors';
 import http from 'http';
+
 import { Server } from 'socket.io';
+import { socketAuthMiddleware } from './src/middleware/auth.middleware.js';
+import { handleConnection } from './src/api/chat/chat.controller.js';
 
-import { socketAuthMiddleware } from './middleware/socketAuthMiddleware.js';
-import { handleConnection } from './controllers/chatController.js';
-import taskRoutes from './routes/taskRoutes.js';
-import userRoutes from './routes/userRoutes.js';
-import fileRoutes from './routes/fileRoutes.js';
-import aiTaskRoutes from './routes/aiTaskRoutes.js';
-import conversationRoutes from './routes/conversationRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
-import teacherRoutes from './routes/teacherRoutes.js';
-import studentRoutes from './routes/studentRoutes.js';
-import subjectRoutes from './routes/subjectRoutes.js';
+import adminRoutes from './src/api/admin/admin.routes.js';
+import aiRoutes from './src/api/ai/ai.routes.js';
+import authRoutes from './src/api/auth/auth.routes.js';
+import conversationRoutes from './src/api/chat/conversation.routes.js';
+import fileRoutes from './src/api/files/file.routes.js';
+import studentRoutes from './src/api/college/student.routes.js';
+import subjectRoutes from './src/api/college/subject.routes.js';
+import taskRoutes from './src/api/tasks/task.routes.js';
+import teacherRoutes from './src/api/college/teacher.routes.js';
+import userRoutes from './src/api/user/user.routes.js';
 
-import errorHandler from './middleware/errorMiddleware.js';
-import connectDB from './connect/database.js';
+import errorHandler from './src/middleware/error.middleware.js';
+import connectDB from './src/connect/database.js';
+
 
 // --- Initial Setup ---
 const app = express();
@@ -39,7 +42,6 @@ connectDB()
 // which is standard for platforms like Render, Heroku, etc.
 app.set('trust proxy', 1);
 
-    
 
 // --- Array of allowed origins ---
 const allowedOrigins = [
@@ -54,7 +56,7 @@ const io = new Server(server, {
     },
 });
 
-export { io };
+export { io }; // Export for use in controllers
 
 // Use authentication middleware for all incoming connections
 io.use(socketAuthMiddleware);
@@ -71,7 +73,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cors({ origin: allowedOrigins }));
 
 // --- Security & Logging Middleware ---
-  // Setting security HTTP headers
+// Setting security HTTP headers
 app.use(helmet({
   crossOriginResourcePolicy: false, // allow images from other origins
   contentSecurityPolicy: false, // disable strict CSP unless you configure it
@@ -83,16 +85,19 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// --- API Routes ---
-app.use('/api/tasks', taskRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/files', fileRoutes);
-app.use('/api/ai', aiTaskRoutes);
-app.use('/api/conversations', conversationRoutes);
+
+// --- API Route Mounting ---
 app.use('/api/admin', adminRoutes);
-app.use('/api/admin/subjects', subjectRoutes);
-app.use('/api/teacher', teacherRoutes);
-app.use('/api/student', studentRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/auth', authRoutes);   // Needs to be configured
+app.use('/api/chat', conversationRoutes);  // For RESTful chat actions
+app.use('/api/files', fileRoutes);
+app.use('/api/college/students', studentRoutes);
+app.use('/api/college/subjects', subjectRoutes);
+app.use('/api/college/teachers', teacherRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/users', userRoutes); // For user profile actions
+
 
 // --- 404 for undefined routes ---
 app.use((req, res, next) => {
@@ -103,9 +108,7 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 // --- Server Start ---
-
 const PORT = process.env.PORT || 8000;
-
 server.listen(PORT, () => console.log(
     `Server listening on ${PORT}`
   ));

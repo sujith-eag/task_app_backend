@@ -1,13 +1,15 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
-import { isTeacher } from '../middleware/roleMiddleware.js';
+
+import { protect } from '../../middleware/auth.middleware.js';
+
+import { isTeacher } from '../../middleware/role.middleware.js';
 import {
     getClassCreationData,
     createClassSession,
     getSessionRoster,
     finalizeAttendance,
     getTeacherSessionsHistory
-} from '../controllers/teacherController.js';
+} from './teacher.controller.js';
 
 const router = express.Router();
 

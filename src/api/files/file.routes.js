@@ -1,17 +1,17 @@
 import express from 'express';
-import { generalApiLimiter } from '../middleware/rateLimiter.js';
 const router = express.Router();
 
 // --- Import Middleware ---
-import { protect } from '../middleware/authMiddleware.js';
-import upload from '../middleware/uploadMiddleware.js';
-import { checkFileLimit } from '../middleware/checkFileLimit.js';
+import { generalApiLimiter } from '../../middleware/rateLimiter.middleware.js';
+import { protect } from '../../middleware/auth.middleware.js';
+import { checkFileLimit, uploadFiles as upload } from '../../middleware/file.middleware.js';
+
 
 // --- Import Controllers ---
 import {
     uploadFiles, getUserFiles, getDownloadLink,
     deleteFile, shareFile, manageShareAccess,
-                } from '../controllers/fileController.js';
+                } from './file.controller.js';
 
 
 router.use(generalApiLimiter); // Apply the general rate limiter to all file routes.

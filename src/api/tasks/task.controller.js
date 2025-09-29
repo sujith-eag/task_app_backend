@@ -1,5 +1,5 @@
 import asyncHandler from 'express-async-handler';
-import Task from '../models/taskModel.js';
+import Task from '../../models/taskModel.js';
 
 
 // @desc    Get tasks with filtering and sorting

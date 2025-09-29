@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
-import User from '../models/userModel.js';
-import ClassSession from '../models/classSessionModel.js';
+import User from '../../models/userModel.js';
+import ClassSession from '../../models/classSessionModel.js';
 
 // --- Helper Function ---
 const generateAttendanceCode = () => {

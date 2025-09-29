@@ -1,9 +1,12 @@
 import express from 'express';
-const router = express.Router();
-import { protect } from '../middleware/authMiddleware.js';
-import { createOrGetConversation , getConversations, 
-    getMessagesForConversation } from '../controllers/conversationController.js';
 
+const router = express.Router();
+
+import { protect } from '../../middleware/auth.middleware.js';
+import { createOrGetConversation , getConversations, 
+    getMessagesForConversation } from './conversation.controller.js';
+
+    
 router.use(protect);
 router.route('/').get(getConversations);   // GET /api/conversations
 router.route('/').post(createOrGetConversation);  // POST /api/conversations

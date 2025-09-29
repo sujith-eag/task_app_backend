@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
-import Conversation from '../models/conversationModel.js';
-import Message from '../models/messageModel.js';
+import Conversation from '../../models/conversationModel.js';
+import Message from '../../models/messageModel.js';
 
 
 // @desc    Find or create a conversation with another user

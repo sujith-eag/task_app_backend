@@ -4,13 +4,14 @@ const router = express.Router();
 import { 
     getCurrentUser, updateCurrentUser, changePassword,
     getDiscoverableUsers, updateUserAvatar, applyAsStudent
-    } from '../controllers/userController.js';
+    } from './user.controller.js';
 
 // --- middleware ---
-import { protect } from '../middleware/authMiddleware.js';
+import { protect } from '../../middleware/auth.middleware.js';
+import avatarUpload from '../../middleware/file.middleware.js';
 
 import { MulterError } from 'multer';
-import avatarUpload from '../middleware/avatarUploadMiddleware.js';
+
 const avatarErrorHandler = (err, req, res, next) => {
     if (err instanceof MulterError && err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ message: 'Avatar image is too large. Maximum size is 5MB.' });

@@ -1,13 +1,12 @@
 import asyncHandler from 'express-async-handler';
 
-import Task from '../models/taskModel.js';
-import Prompt from '../models/promptModel.js';
-import User from '../models/userModel.js';
+import Task from '../../models/taskModel.js';
+import Prompt from '../../models/promptModel.js';
+import User from '../../models/userModel.js';
 
 import { runTestPrompt, 
     generateTasksFromPrompt,
-    generateOrRefineTasks } from '../utils/llmService.js';
-
+    generateOrRefineTasks } from '../../services/llm.service.js';
 
     
 // @desc    Get a preview of an AI-generated task plan or refine an existing one

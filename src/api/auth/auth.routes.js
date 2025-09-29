@@ -1,12 +1,11 @@
 import express from 'express';
 const router = express.Router();
 
-import { registerUser, loginUser, verifyEmail } from '../controllers/authController.js';
-import { forgotPassword, resetPassword } from '../controllers/passwordController.js';
+import { registerUser, loginUser, verifyEmail } from './auth.controller.js';
+import { forgotPassword, resetPassword } from './password.controller.js';
 
 // --- middleware ---
-import { authLimiter } from '../middleware/rateLimiter.js';
-
+import { authLimiter } from '../../middleware/rateLimiter.middleware.js'
 
 // =================================================================
 // --- PUBLIC ROUTES ---

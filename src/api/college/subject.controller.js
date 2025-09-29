@@ -1,5 +1,5 @@
-import Subject from '../models/subjectModel.js';
-import User from '../models/userModel.js';
+import Subject from '../../models/subjectModel.js';
+import User from '../../models/userModel.js';
 import asyncHandler from 'express-async-handler';
 
 

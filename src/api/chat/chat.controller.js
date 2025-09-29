@@ -1,11 +1,9 @@
 // controllers/chatController.js
-import Conversation from '../models/conversationModel.js';
-import Message from '../models/messageModel.js';
+import Conversation from '../../models/conversationModel.js';
+import Message from '../../models/messageModel.js';
 
 // { userId: Set(socketId) }
 const onlineUsers = {}; // keep as plain object of Sets
-
-
 
 
 const broadcastOnlineUsers = (io) => {

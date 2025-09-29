@@ -3,9 +3,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import Joi from 'joi';
 import crypto from 'crypto';
-import { sendEmail } from '../utils/emailService.js';
+import { sendEmail } from '../../services/email.service.js';
 
-import User from '../models/userModel.js';
+import User from '../../models/userModel.js';
 
 const MAX_LOGIN_ATTEMPTS=5;
 const LOCKOUT_DURATION_MINUTES=10;

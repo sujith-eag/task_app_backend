@@ -1,6 +1,7 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
-import { isAdmin } from '../middleware/roleMiddleware.js';
+
+import { protect } from '../../middleware/auth.middleware.js';
+import { isAdmin } from '../../middleware/role.middleware.js';
 
 import {
     createSubject,
@@ -8,7 +9,7 @@ import {
     getSubjectById,
     updateSubject,
     deleteSubject
-    } from '../controllers/subjectController.js';
+    } from './subject.controller.js';
 
 const router = express.Router();
 
