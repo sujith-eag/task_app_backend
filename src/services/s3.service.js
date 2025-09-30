@@ -23,9 +23,11 @@ const s3Client = new S3Client({
 });
 
 
-// Uploads a file to S3.
-// @param {object} file - The file object from multer (req.file).
-// @returns {Promise<string>} - The unique key of the uploaded file in S3.
+/**
+ * Uploads a file to S3.
+ * @param {object} file - The file object from multer (req.file).
+ * @returns {Promise<string>} - The unique key of the uploaded file in S3.
+ */
 export const uploadFile = async (file) => {
     // Generate a unique, random name for the file
     const randomFileName = (bytes = 16) => crypto.randomBytes(bytes).toString('hex');
@@ -45,9 +47,10 @@ export const uploadFile = async (file) => {
 };
 
 
-
-// Deletes a file from S3.
-// @param {string} fileKey - The key of the file to delete.
+/**
+ * Deletes a file from S3.
+ * @param {string} fileKey - The key of the file to delete.
+ */
 export const deleteFile = async (fileKey) => {
     const deleteParams = {
         Bucket: bucketName,
@@ -59,10 +62,11 @@ export const deleteFile = async (fileKey) => {
 };
 
 
-
-// Generates a secure, temporary URL to download a file from S3.
-// @param {string} fileKey - The key of the file to generate a URL for.
-// @returns {Promise<string>} - The pre-signed URL.
+/**
+ * Generates a secure, temporary URL to download a file from S3.
+ * @param {string} fileKey - The key of the file to generate a URL for.
+ * @returns {Promise<string>} - The pre-signed URL.
+ */
 export const getSignedUrl = async (fileKey, fileName) => {
     const getParams = {
         Bucket: bucketName,

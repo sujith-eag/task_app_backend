@@ -4,7 +4,7 @@ import Task from '../../models/taskModel.js';
 import Prompt from '../../models/promptModel.js';
 import User from '../../models/userModel.js';
 
-import { runTestPrompt, 
+import {
     generateTasksFromPrompt,
     generateOrRefineTasks } from '../../services/llm.service.js';
 

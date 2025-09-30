@@ -1,9 +1,10 @@
 import nodemailer from 'nodemailer';
 
-
-//  @param {string} to - The recipient's email address.
-//  @param {string} subject - The subject of the email.
-//  @param {string} html - The HTML content of the email.
+/**
+ *  @param {string} to - The recipient's email address.
+ *  @param {string} subject - The subject of the email.
+ *  @param {string} html - The HTML content of the email.
+*/
 export const sendEmail = async (options) => {
     // "transporter" object with SMTP credentials  
     const transporter = nodemailer.createTransport({

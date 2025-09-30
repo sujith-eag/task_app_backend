@@ -133,29 +133,3 @@ export const generateTasksFromPrompt = async (userPrompt) => {
     }
 };
 
-
-
-
-
-
-
-/**
- * A simple function to test the connection to the Gemini API.
- * @returns {Promise<string>} - The text response from the AI model.
- */
-export const runTestPrompt = async () => {
-    try {
-        
-        const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL });
-
-        const prompt = 'Tell me a short, one-paragraph story about a brave eagle planning a difficult journey.';
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        return text;
-    } catch (error) {
-        console.error("Error connecting to Gemini API:", error);
-        throw new Error('Failed to get a response from the AI service.');
-    }
-};
