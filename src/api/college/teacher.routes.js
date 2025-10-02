@@ -21,6 +21,8 @@ router.get('/class-creation-data', getClassCreationData);
 router.post('/class-sessions', createClassSession);
 router.get('/class-sessions', getTeacherSessionsHistory);
 
+router.post('/session-reflection', createSessionReflection);
+
 router.route('/class-sessions/:sessionId/roster')
     .get(getSessionRoster)
     .patch(finalizeAttendance);

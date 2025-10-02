@@ -2,6 +2,8 @@ import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import User from '../../models/userModel.js';
 import ClassSession from '../../models/classSessionModel.js';
+import TeacherSessionReflection from '../../models/teacherSessionReflectionModel.js';
+
 
 // --- Helper Function ---
 const generateAttendanceCode = () => {
@@ -17,6 +19,18 @@ const createSessionSchema = Joi.object({
     batch: Joi.number().integer().required(),
     semester: Joi.number().integer().required(),
     section: Joi.string().valid('A', 'B').required(),
+});
+
+const reflectionSchema = Joi.object({
+    classSessionId: Joi.string().hex().length(24).required(),
+    selfAssessment: Joi.object({
+        effectiveness: Joi.number().min(1).max(5).required(),
+        studentEngagement: Joi.number().min(1).max(5).required(),
+        pace: Joi.string().valid('Too Slow', 'Just Right', 'Too Fast').required(),
+    }).required(),
+    sessionHighlights: Joi.string().trim().max(500).required(),
+    challengesFaced: Joi.string().trim().max(500).allow('').optional(),
+    improvementsForNextSession: Joi.string().trim().max(500).allow('').optional(),
 });
 
 
@@ -176,4 +190,38 @@ export const getTeacherSessionsHistory = asyncHandler(async (req, res) => {
         .limit(15); // Or use query params for pagination
 
     res.status(200).json(sessions);
+});
+
+
+
+// @desc    Submit a reflection for a class session
+// @route   POST /api/college/teachers/session-reflection
+// @access  Private/Teacher
+export const createSessionReflection = asyncHandler(async (req, res) => {
+    const { error, value } = reflectionSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+    const { classSessionId, ...reflectionData } = value;
+
+    const session = await ClassSession.findById(classSessionId);
+    if (!session) {
+        res.status(404);
+        throw new Error('Class session not found.');
+    }
+
+    // Authorization: Ensuring logged-in user is the teacher who taught the class
+    if (session.teacher.toString() !== req.user.id) {
+        res.status(403); // Forbidden
+        throw new Error('You are not authorized to submit a reflection for this session.');
+    }
+
+    const newReflection = await TeacherSessionReflection.create({
+        classSession: classSessionId,
+        teacher: req.user.id,
+        ...reflectionData
+    });
+
+    res.status(201).json(newReflection);
 });

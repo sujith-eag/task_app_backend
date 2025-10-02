@@ -35,7 +35,5 @@ const feedbackSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-feedbackSchema.index({ teacher: 1, subject: 1 });
-
 const Feedback = mongoose.model("Feedback", feedbackSchema);
 export default Feedback;

@@ -9,12 +9,20 @@ const markAttendanceSchema = Joi.object({
     attendanceCode: Joi.string().trim().length(8).required(),
 });
 
+
 // Joi schema for submitting feedback
 const submitFeedbackSchema = Joi.object({
     classSessionId: Joi.string().hex().length(24).required(),
-    rating: Joi.number().min(1).max(10).required(),
-    comment: Joi.string().trim().max(500).allow('').optional(),
+    ratings: Joi.object({
+        clarity: Joi.number().min(1).max(5).required(),
+        engagement: Joi.number().min(1).max(5).required(),
+        pace: Joi.number().min(1).max(5).required(),
+        knowledge: Joi.number().min(1).max(5).required(),
+    }).required(),
+    positiveFeedback: Joi.string().trim().max(500).allow('').optional(),
+    improvementSuggestions: Joi.string().trim().max(500).allow('').optional(),
 });
+
 
 
 // @desc    Mark attendance for a class
@@ -88,7 +96,7 @@ export const submitFeedback = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error(error.details[0].message);
     }
-    const { classSessionId, rating, comment } = value;
+    const { classSessionId, ratings, positiveFeedback, improvementSuggestions } = value;
     
     // Find the class session and check student eligibility
     const session = await ClassSession.findById(classSessionId);
@@ -120,8 +128,11 @@ export const submitFeedback = asyncHandler(async (req, res) => {
             teacher: session.teacher,
             subject: session.subject,
             classSession: classSessionId,
-            rating,
-            comment,
+            batch: session.batch,
+            semester: session.semester,
+            ratings,
+            positiveFeedback,
+            improvementSuggestions,
         }], { session: dbSession });
 
         // Step B: Mark that the student has submitted feedback
