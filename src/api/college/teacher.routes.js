@@ -8,7 +8,8 @@ import {
     createClassSession,
     getSessionRoster,
     finalizeAttendance,
-    getTeacherSessionsHistory
+    getTeacherSessionsHistory,
+    getFeedbackSummaryForSession,
 } from './teacher.controller.js';
 
 const router = express.Router();
@@ -27,4 +28,7 @@ router.route('/class-sessions/:sessionId/roster')
     .get(getSessionRoster)
     .patch(finalizeAttendance);
 
+router.get('/feedback-summary/:classSessionId', getFeedbackSummaryForSession);
+    
+   
 export default router;

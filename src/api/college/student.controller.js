@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import ClassSession from '../../models/classSessionModel.js';
@@ -138,7 +139,11 @@ export const submitFeedback = asyncHandler(async (req, res) => {
         // Step B: Mark that the student has submitted feedback
         await ClassSession.updateOne(
             { _id: classSessionId, 'attendanceRecords.student': req.user.id },
-            { $set: { 'attendanceRecords.$.hasSubmittedFeedback': true } },
+            { $set: { 
+                'attendanceRecords.$.hasSubmittedFeedback': true,
+                'attendanceRecords.$.feedbackSubmittedAt': new Date(),
+                } 
+            },
             { session: dbSession }
         );
 
@@ -210,4 +215,31 @@ export const getStudentDashboardStats = asyncHandler(async (req, res) => {
     ]);
 
     res.status(200).json(stats);
+});
+
+
+
+
+// @desc    Get past sessions that a student can submit feedback for
+// @route   GET /api/college/students/sessions-for-feedback
+// @access  Private/Student
+export const getSessionsForFeedback = asyncHandler(async (req, res) => {
+    const studentId = req.user._id;
+
+    const sessions = await ClassSession.find({
+        // Use $elemMatch to find documents where at least one element in the 
+        // attendanceRecords array matches all the specified conditions.
+        attendanceRecords: {
+            $elemMatch: {
+                student: studentId,
+                status: true, // The student must have been present
+                hasSubmittedFeedback: false // And not yet submitted feedback
+            }
+        }
+    })
+    .sort({ startTime: -1 }) // Show the most recent classes first
+    .populate('subject', 'name subjectCode') // Populate subject details needed for the UI
+    .populate('teacher', 'name'); // Populate teacher's name needed for the UI
+
+    res.status(200).json(sessions);
 });

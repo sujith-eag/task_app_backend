@@ -6,7 +6,8 @@ import { generalApiLimiter } from '../../middleware/rateLimiter.middleware.js';
 import {
     markAttendance,
     submitFeedback,
-    getStudentDashboardStats
+    getStudentDashboardStats,
+    getSessionsForFeedback,
 } from './student.controller.js';
 
 const router = express.Router();
@@ -19,5 +20,7 @@ router.post('/attendance/mark', generalApiLimiter, markAttendance);
 router.post('/feedback', submitFeedback);
 
 router.get('/dashboard-stats', getStudentDashboardStats);
+
+router.get('/sessions-for-feedback', getSessionsForFeedback);
 
 export default router;

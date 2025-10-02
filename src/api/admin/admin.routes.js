@@ -8,6 +8,7 @@ import {
     getUsersByRole,
     promoteToFaculty,
     getAttendanceStats,
+    getFeedbackReport,
     getFeedbackSummary,
     updateTeacherAssignments,
     deleteTeacherAssignment,
@@ -49,7 +50,7 @@ router.route('/students/:studentId')
 router.route('/students/:studentId/enrollment')
     .put(protect, isAdmin, updateStudentEnrollment);
 
-    // --- Reporting & Statistics (Admin & HOD) ---
+// --- Reporting & Statistics (Admin & HOD) ---
 router.route('/attendance-stats')
     .get(protect, isAdminOrHOD, getAttendanceStats);
 
@@ -57,4 +58,6 @@ router.route('/feedback-summary')
     .get(protect, isAdminOrHOD, getFeedbackSummary);
 
 
+router.get('/feedback-report/:classSessionId', protect, isAdminOrHOD, getFeedbackReport);
+    
 export default router;

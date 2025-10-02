@@ -225,3 +225,62 @@ export const createSessionReflection = asyncHandler(async (req, res) => {
 
     res.status(201).json(newReflection);
 });
+
+
+// @desc    Get an anonymized feedback summary for a specific session
+// @route   GET /api/college/teachers/feedback-summary/:classSessionId
+// @access  Private/Teacher
+export const getFeedbackSummaryForSession = asyncHandler(async (req, res) => {
+    const { classSessionId } = req.params;
+
+    // Authorization: Ensure the teacher requesting is the one who taught the session
+    const session = await ClassSession.findById(classSessionId);
+    if (!session) {
+        res.status(404);
+        throw new Error('Class session not found.');
+    }
+    if (session.teacher.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('You are not authorized to view feedback for this session.');
+    }
+
+    // Aggregate student feedback (similar to admin, but we won't return comments)
+    const studentFeedbackPromise = Feedback.aggregate([
+        { $match: { classSession: mongoose.Types.ObjectId(classSessionId) } },
+        {
+            $group: {
+                _id: '$classSession',
+                feedbackCount: { $sum: 1 },
+                avgClarity: { $avg: '$ratings.clarity' },
+                avgEngagement: { $avg: '$ratings.engagement' },
+                avgPace: { $avg: '$ratings.pace' },
+                avgKnowledge: { $avg: '$ratings.knowledge' },
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                feedbackCount: 1,
+                averageRatings: {
+                    clarity: { $round: ['$avgClarity', 2] },
+                    engagement: { $round: ['$avgEngagement', 2] },
+                    pace: { $round: ['$avgPace', 2] },
+                    knowledge: { $round: ['$avgKnowledge', 2] },
+                }
+            }
+        }
+    ]);
+
+    // Fetch Teacher's own reflection
+    const teacherReflectionPromise = TeacherSessionReflection.findOne({ classSession: classSessionId });
+    
+    const [studentFeedback, teacherReflection] = await Promise.all([
+        studentFeedbackPromise,
+        teacherReflectionPromise
+    ]);
+
+    res.status(200).json({
+        studentFeedbackSummary: studentFeedback[0] || { feedbackCount: 0, averageRatings: {} },
+        teacherReflection: teacherReflection || null,
+    });
+});

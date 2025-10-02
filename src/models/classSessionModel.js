@@ -50,14 +50,12 @@ const classSessionSchema = new mongoose.Schema({
             type: Boolean,
             default: false 
         },
-
         hasSubmittedFeedback: {
             type: Boolean,
             default: false
-        }
+        },
+        feedbackSubmittedAt: { type: Date }
     }],
-
-    
 }, { timestamps: true });
 
 // Indexing for fetching classes by subject or teacher

@@ -4,6 +4,8 @@ import User from '../../models/userModel.js';
 import ClassSession from '../../models/classSessionModel.js';
 import Feedback from '../../models/feedbackModel.js';
 import Subject from '../../models/subjectModel.js';
+import TeacherSessionReflection from '../../models/teacherSessionReflectionModel.js';
+
 
 // Joi Schema for the initial promotion to a faculty role
 
@@ -355,6 +357,72 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
     ]);
 
     res.status(200).json(stats);
+});
+
+
+
+// @desc    Get a comprehensive feedback report for a class session
+// @route   GET /api/admin/feedback-report/:classSessionId
+// @access  Private/Admin_HOD
+export const getFeedbackReport = asyncHandler(async (req, res) => {
+    const { classSessionId } = req.params;
+
+    // 1. Fetch Session Details
+    const sessionDetails = ClassSession.findById(classSessionId)
+        .populate('teacher', 'name')
+        .populate('subject', 'name subjectCode');
+
+    // 2. Aggregate Anonymous Student Feedback
+    const studentFeedbackPromise = Feedback.aggregate([
+        { $match: { classSession: mongoose.Types.ObjectId(classSessionId) } },
+        {
+            $group: {
+                _id: '$classSession',
+                feedbackCount: { $sum: 1 },
+                avgClarity: { $avg: '$ratings.clarity' },
+                avgEngagement: { $avg: '$ratings.engagement' },
+                avgPace: { $avg: '$ratings.pace' },
+                avgKnowledge: { $avg: '$ratings.knowledge' },
+                positiveComments: { $push: '$positiveFeedback' },
+                improvementSuggestions: { $push: '$improvementSuggestions' },
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                feedbackCount: 1,
+                averageRatings: {
+                    clarity: { $round: ['$avgClarity', 2] },
+                    engagement: { $round: ['$avgEngagement', 2] },
+                    pace: { $round: ['$avgPace', 2] },
+                    knowledge: { $round: ['$avgKnowledge', 2] },
+                },
+                positiveComments: { $filter: { input: "$positiveComments", as: "comment", cond: { $ne: ["$$comment", ""] } } },
+                improvementSuggestions: { $filter: { input: "$improvementSuggestions", as: "suggestion", cond: { $ne: ["$$suggestion", ""] } } },
+            }
+        }
+    ]);
+
+    // 3. Fetch Teacher's Reflection
+    const teacherReflectionPromise = TeacherSessionReflection.findOne({ classSession: classSessionId });
+
+    // Execute all promises in parallel
+    const [session, studentFeedback, teacherReflection] = await Promise.all([
+        sessionDetails,
+        studentFeedbackPromise,
+        teacherReflectionPromise
+    ]);
+
+    if (!session) {
+        res.status(404);
+        throw new Error('Class session not found.');
+    }
+
+    res.status(200).json({
+        sessionDetails: session,
+        studentFeedbackSummary: studentFeedback[0] || { feedbackCount: 0, averageRatings: {}, comments: [] },
+        teacherReflection: teacherReflection || null,
+    });
 });
 
 
