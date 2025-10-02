@@ -5,29 +5,33 @@ const feedbackSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
+        index: true,
     },
     subject: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Subject',
         required: true,
+        index: true,
     },
     classSession: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ClassSession',
         required: true,
     },
+    batch: { type: Number, required: true },
+    semester: { type: Number, required: true },
     
-    // --- FEEDBACK CONTENT, Needs to Expand on this---
-    rating: { // scale of 1 to 10
-        type: Number,
-        min: 1,
-        max: 10,
-        required: true,
+    // --- Quantitative Feedback Metrics (Scale of 1-5) ---
+    ratings: {
+        clarity: { type: Number, min: 1, max: 5, required: true },
+        engagement: { type: Number, min: 1, max: 5, required: true },
+        pace: { type: Number, min: 1, max: 5, required: true },
+        knowledge: { type: Number, min: 1, max: 5, required: true },
     },
-    comment: {
-        type: String,
-        trim: true,
-    },
+
+    // --- Qualitative Feedback (Text) ---
+    positiveFeedback: { type: String, trim: true, maxlength: 500 },
+    improvementSuggestions: { type: String, trim: true, maxlength: 500 },
 
 }, { timestamps: true });
 
