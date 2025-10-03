@@ -87,6 +87,7 @@ export const markAttendance = asyncHandler(async (req, res) => {
 });
 
 
+
 // @desc    Submit anonymous feedback for a class session
 // @route   POST /api/student/feedback
 // @access  Private/Student
@@ -162,6 +163,7 @@ export const submitFeedback = asyncHandler(async (req, res) => {
 });
 
 
+
 // @desc    Get dashboard stats (attendance per subject) for the logged-in student
 // @route   GET /api/v1/student/dashboard-stats
 // @access  Private/Student
@@ -219,7 +221,6 @@ export const getStudentDashboardStats = asyncHandler(async (req, res) => {
 
 
 
-
 // @desc    Get past sessions that a student can submit feedback for
 // @route   GET /api/college/students/sessions-for-feedback
 // @access  Private/Student
@@ -227,7 +228,7 @@ export const getSessionsForFeedback = asyncHandler(async (req, res) => {
     const studentId = req.user._id;
 
     const sessions = await ClassSession.find({
-        // Use $elemMatch to find documents where at least one element in the 
+        // Using $elemMatch to find documents where at least one element in the 
         // attendanceRecords array matches all the specified conditions.
         attendanceRecords: {
             $elemMatch: {
