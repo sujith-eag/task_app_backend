@@ -34,4 +34,3 @@ export const sendEmail = async (options) => {
         console.error('Error sending email:', error);
     }
 };
-

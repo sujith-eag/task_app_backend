@@ -89,7 +89,7 @@ export const registerUser = asyncHandler(async (req, res) => {
 	    
     user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
-        // --- Send the verification email ---
+    // --- Send the verification email ---
     try {
         await user.save(); 
         // Save the new user OR the updated unverified user
