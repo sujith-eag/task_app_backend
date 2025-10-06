@@ -264,9 +264,6 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
         console.error("Failed to send application confirmation email:", emailError);
     }    
     
-        
-    res.status(200).json({
-        message: 'Your application has been submitted successfully.',
-        applicationStatus: 'pending',
-    });
+// { message: 'Your application has been submitted successfully.'}
+    res.status(200).json(user);
 });
