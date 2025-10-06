@@ -6,6 +6,8 @@ import User from '../../models/userModel.js';
 
 import { deleteFile as deleteFromS3 } from '../../services/s3.service.js';
 import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
+import { populateTemplate } from '../../utils/emailTemplate.js';
+import { sendEmail } from '../../services/email.service.js';
 
 
 // Joi Schema for profile updates
@@ -247,6 +249,22 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
 
     await user.save();
 
+    // --- Send Confirmation email ---
+    try {
+        const templateData = { name: user.name };
+        const htmlMessage = await populateTemplate('studentApplicationPending.html', templateData);
+        
+        await sendEmail({
+            to: user.email,
+            subject: 'Your Student Application is Under Review',
+            html: htmlMessage,
+            text: `Hello ${user.name}, we have received your application to become a student. It is now under review.`
+        });
+    } catch (emailError) {
+        console.error("Failed to send application confirmation email:", emailError);
+    }    
+    
+        
     res.status(200).json({
         message: 'Your application has been submitted successfully.',
         applicationStatus: 'pending',

@@ -6,8 +6,10 @@ import Feedback from '../../models/feedbackModel.js';
 import Subject from '../../models/subjectModel.js';
 import TeacherSessionReflection from '../../models/teacherSessionReflectionModel.js';
 
+import { populateTemplate } from '../../utils/emailTemplate.js';
+import { sendEmail } from '../../services/email.service.js';
+import { use } from 'passport';
 
-// Joi Schema for the initial promotion to a faculty role
 
 const updateStudentSchema = Joi.object({
     usn: Joi.string().trim().optional(),
@@ -22,6 +24,7 @@ const updateEnrollmentSchema = Joi.object({
     subjectIds: Joi.array().items(Joi.string().hex().length(24)).required()
 });
 
+// Joi Schema for the initial promotion to a faculty role
 const facultyPromotionSchema = Joi.object({
     role: Joi.string().valid('teacher', 'hod').required(),
     staffId: Joi.string().trim().required(),
@@ -91,6 +94,25 @@ export const reviewApplication = asyncHandler(async (req, res) => {
     
     await user.save();
 
+    // --- Send Approval Email ---
+    try {
+        const templateData = {
+            name: user.name,
+            loginUrl: `${process.env.FRONTEND_URL}/login`
+        };
+        const htmlMessage = await populateTemplate('studentApplicationApproved.html', templateData);
+        
+        await sendEmail({
+            to: user.email,
+            subject: 'Your Student Application has been Approved!',
+            html: htmlMessage,
+            text: `Congratulations ${user.name}, your application has been approved! You can now log in.`
+        });
+    } catch (emailError) {
+        console.error("Failed to send approval email:", emailError);
+    }    
+    
+    
     res.status(200).json({
         message: `Application for ${user.name} has been ${action}d.`,
         user: {
@@ -198,6 +220,26 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
 
     await user.save();
 
+    // --- Send Promotion Email ---
+    try {
+        const templateData = {
+            name: user.name,
+            newRole: user.role,
+            loginUrl: `${process.env.FRONTEND_URL}/login`
+        };
+        const htmlMessage = await populateTemplate('facultyPromotion.html', templateData);
+        
+        await sendEmail({
+            to: user.email,
+            subject: 'Your Account Role has been Updated',
+            html: htmlMessage,
+            text: `Hello ${user.name}, your account has been promoted to the ${newRole} role.`
+        });
+    } catch (emailError) {
+        console.error("Failed to send promotion email:", emailError);
+    }    
+    
+    
     res.status(200).json({
         message: `${user.name} has been promoted to ${role}.`,
         user: {
