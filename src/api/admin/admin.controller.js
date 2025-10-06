@@ -8,7 +8,6 @@ import TeacherSessionReflection from '../../models/teacherSessionReflectionModel
 
 import { populateTemplate } from '../../utils/emailTemplate.js';
 import { sendEmail } from '../../services/email.service.js';
-import { use } from 'passport';
 
 
 const updateStudentSchema = Joi.object({
