@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 
 import User from '../../models/userModel.js';
 import { sendEmail } from '../../services/email.service.js';
+import { populateTemplate } from '../../utils/emailTemplate.js';
 
 // --- Joi Validation Schemas ---
 
@@ -43,11 +44,11 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         // --- Check for an existing, valid token ---
         if (user.passwordResetToken && user.passwordResetExpires > Date.now()) {
             res.status(400); // Bad Request or 429 Too Many Requests
-            throw new Error('A password reset link has already been sent. Please check your email or wait until the current link expires.');
+            throw new Error('A reset link has already been sent. Please check your email or wait until the link expires.');
         }
         if(!user.isVerified){
             res.status(403);
-            throw new Error('This account has not been verified. Please check your email for a verification link.');
+            throw new Error('This account is not verified. Please check your email for a verification link.');
         }
         // Generate and save the reset token if user exists
         const resetToken = crypto.randomBytes(20).toString('hex');
@@ -60,20 +61,29 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10-minute expiry
         await user.save({ validateBeforeSave: false });
 
-        // Send Email.  https://task.sujith-eag.in/resetpassword/${resetToken}
         const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`;
+        
+        
+        
+        
+        
         console.log(`Generated URL: ${resetUrl}`);
-        const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please Follow the link to the Password Reset Page: \n\n ${resetUrl}`;
+        // const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please Follow the link to the Password Reset Page: \n\n ${resetUrl}`;
 
         try {
+            const templateData = { name: user.name, resetUrl: resetUrl };
+            const htmlMessage = await populateTemplate('passwordReset.html', templateData);
+            const textMessage = `Follow this link to reset your password: ${resetUrl}`;
+            
             await sendEmail({
                 to: user.email,
-                subject: 'Password Reset Token for Eagle Tasks',
-                text: message,
+                subject: 'Password Reset Request for Eagle Campus',
+                html: htmlMessage,
+                text: textMessage,
             });
         } catch (error) {
-            console.error('Email could not be sent:', error);
-            // Clear the token fields if email fails, so the user can try again
+            console.error('Password reset email could not be sent:', error);
+            // Clearing token fields if email fails, so the user can try again
             user.passwordResetToken = undefined;
             user.passwordResetExpires = undefined;
             await user.save({ validateBeforeSave: false });
