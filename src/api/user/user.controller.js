@@ -249,6 +249,8 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
 
     await user.save();
 
+    res.status(200).json(user);
+
     // --- Send Confirmation email ---
     try {
         const templateData = { name: user.name };
@@ -260,10 +262,8 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
             html: htmlMessage,
             text: `Hello ${user.name}, we have received your application to become a student. It is now under review.`
         });
+        console.log(`Confirmation email sent to ${user.email} in the background.`);
     } catch (emailError) {
         console.error("Failed to send application confirmation email:", emailError);
-    }    
-    
-// { message: 'Your application has been submitted successfully.'}
-    res.status(200).json(user);
+    }
 });

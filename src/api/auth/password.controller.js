@@ -64,12 +64,8 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`;
         
         
-        
-        
-        
         console.log(`Generated URL: ${resetUrl}`);
-        // const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please Follow the link to the Password Reset Page: \n\n ${resetUrl}`;
-
+        
         try {
             const templateData = { name: user.name, resetUrl: resetUrl };
             const htmlMessage = await populateTemplate('passwordReset.html', templateData);

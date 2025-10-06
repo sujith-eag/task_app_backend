@@ -93,6 +93,15 @@ export const reviewApplication = asyncHandler(async (req, res) => {
     
     await user.save();
 
+    res.status(200).json({
+        message: `Application for ${user.name} has been ${action}d.`,
+        user: {
+            id: user._id,
+            role: user.role,
+            applicationStatus: user.studentDetails.applicationStatus,
+        },
+    });
+    
     // --- Send Approval Email ---
     try {
         const templateData = {
@@ -111,15 +120,6 @@ export const reviewApplication = asyncHandler(async (req, res) => {
         console.error("Failed to send approval email:", emailError);
     }    
     
-    
-    res.status(200).json({
-        message: `Application for ${user.name} has been ${action}d.`,
-        user: {
-            id: user._id,
-            role: user.role,
-            applicationStatus: user.studentDetails.applicationStatus,
-        },
-    });
 });
 
 
@@ -236,9 +236,8 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
         });
     } catch (emailError) {
         console.error("Failed to send promotion email:", emailError);
-    }    
-    
-    
+    }
+     
     res.status(200).json({
         message: `${user.name} has been promoted to ${role}.`,
         user: {
@@ -246,7 +245,7 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
             role: user.role,
             teacherDetails: user.teacherDetails,
         }
-    });
+    }); 
 });
 
 
