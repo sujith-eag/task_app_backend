@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import Joi from 'joi';
 import crypto from 'crypto';
+
+import { populateTemplate } from '../../utils/emailTemplate.js';
 import { sendEmail } from '../../services/email.service.js';
 
 import User from '../../models/userModel.js';
@@ -49,6 +51,10 @@ export const registerUser = asyncHandler(async (req, res) => {
     const { name, email, password } = value;
     let user = await User.findOne({ email });
 
+    // --- Track if the user is new and set a dynamic success message ---
+    let isNewUser = false;
+    let successMessage = 'Registration successful. Please check your email to verify your account.';    
+    
     // --- LOGIC FOR EXISTING USERS ---
     if (user) {
         // User exists AND is verified
@@ -57,23 +63,25 @@ export const registerUser = asyncHandler(async (req, res) => {
 	        throw new Error('Unable to register user'); 
 	        // Not revealing user exists
         } 
-        // User exists but is NOT verified
-        else {
+        else 
+        {  // User exists but is NOT verified, so we'll update them
             const salt = await bcrypt.genSalt(10);
             user.password = await bcrypt.hash(password, salt);
             user.name = name;
+            successMessage = 'An account already exists for this email. A new verification link has been sent.';            
         }
     } 
-    // If no user exists, create a new one.
-    else {
+    else 
+    {   // No user exists, create a new one.
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        user = await User.create({
+        user = new User({  // `new User` instead of `User.create` to prevent premature saving
             name,
             email,
             password: hashedPassword,
             isVerified: false, // Starts Unverified
         });
+        isNewUser = true; // for error handling logic
     }
     if (!user) {
          res.status(400);
@@ -95,28 +103,50 @@ export const registerUser = asyncHandler(async (req, res) => {
         // Save the new user OR the updated unverified user
         
         const verificationUrl = `${process.env.FRONTEND_URL}/verifyemail/${verificationToken}`;
-        const message = `Welcome to Eagle Tasks! Please verify your email address by clicking the following link or pasting it into your browser: \n\n ${verificationUrl}`;
+
+        // const message = `Welcome to Eagle Tasks! Please verify your email address by clicking the following link or pasting it into your browser: \n\n ${verificationUrl}`;
+
+        // Prepare data for the template
+        const templateData = {
+            name: user.name,
+            verificationUrl: verificationUrl,
+        };
+
+        // Populate the HTML template
+        const htmlMessage = await populateTemplate('verificationEmail.html', templateData);
+
+        // A simple text fallback if HTML fails
+        const textMessage = `Welcome to Eagle Campus, ${user.name}! Please verify your email by copying and pasting this link into your browser: ${verificationUrl}`;
+
         await sendEmail({
             to: user.email,
-            subject: 'Verify Your Email Address for Eagle Tasks',
-            text: message,
+            subject: 'Verify Your Email Address for Eagle Campus',
+            text: textMessage,
+            html: htmlMessage,
         });
 
-        res.status(201).json({ 
-            message: 'Registration successful. Please check your email to verify your account.' 
-        });
+        res.status(201).json({ message: successMessage });
 
     } catch (error) {
+
         // --- ATOMIC OPERATION ---
-        // If email fails to send, delete the user
-        if (error.code !== 'EAUTH') { 
-        // Don't delete on simple auth errors, but on send failures
-             await User.deleteOne({ _id: user._id });
+        console.error('Error during registration finalization:', error);
+
+        // Only delete the user IF they were newly created in this request.
+        // Prevents deleting existing unverified users.
+        if (isNewUser) {
+            await User.deleteOne({ _id: user._id });
         }
 
-        console.error('Email could not be sent for verification:', error);
+        // If email fails to send, delete the user
+        // if (error.code !== 'EAUTH') { 
+        // Don't delete on simple auth errors, but on send failures
+            //  await User.deleteOne({ _id: user._id });
+        // }
 
-        throw new Error('User registration failed. Please try again.');
+        // console.error('Email could not be sent for verification:', error);
+
+        throw new Error('User registration failed due to a server error. Please try again.');
     }
 });
 
@@ -195,12 +225,18 @@ export const verifyEmail = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({
         emailVerificationToken: hashedToken,
-        emailVerificationExpires: { $gt: Date.now() },
+        // emailVerificationExpires: { $gt: Date.now() },
     });
 
-    if (!user) {
+    if (!user) { // Token does not exist
         res.status(400);
-        throw new Error('Invalid or expired verification token.');
+        throw new Error('Verification token is invalid.');
+    }
+
+    // The token exists but has expired
+    if (user.emailVerificationExpires < Date.now()) {
+        res.status(400);
+        throw new Error('Verification token has expired. Please request a new one.');
     }
 
     user.isVerified = true;

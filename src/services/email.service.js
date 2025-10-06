@@ -1,11 +1,52 @@
 import nodemailer from 'nodemailer';
+import Brevo from '@getbrevo/brevo';
 
+
+/**
+ * @param {object} options - Email options object
+ * @param {string} options.to - The recipient's email address.
+ * @param {string} options.subject - The subject of the email.
+ * @param {string} options.text - The plain text content of the email.
+ * @param {string} [options.html] - The HTML content of the email (optional).
+*/
+export const sendEmail = async (options) => {
+
+    const api = new Brevo.TransactionalEmailsApi();
+
+    // Set the API key for authentication
+    api.setApiKey(
+        Brevo.TransactionalEmailsApiApiKeys.apiKey,
+        process.env.BREVO_API_KEY
+    );
+
+    // Construct the email payload for Brevo
+    const sendSmtpEmail = new Brevo.SendSmtpEmail();
+
+    sendSmtpEmail.subject = options.subject;
+    sendSmtpEmail.textContent = options.text;
+    sendSmtpEmail.htmlContent = options.html; // Will be used if provided
+    sendSmtpEmail.sender = { email: process.env.BREVO_SENDER_EMAIL };
+    sendSmtpEmail.to = [{ email: options.to }];
+
+    try {
+        // Sending email using Brevo API
+        await api.sendTransacEmail(sendSmtpEmail);
+        console.log('Email sent successfully via Brevo!');
+    } catch (error) {
+        console.error('Error sending email via Brevo:', error);
+        // Throw error to be caught by the controller
+        throw error;
+    }
+};
+
+
+// CURRENTLY NOT USING AFTER SHIFTING TO BREVO API
 /**
  *  @param {string} to - The recipient's email address.
  *  @param {string} subject - The subject of the email.
  *  @param {string} html - The HTML content of the email.
 */
-export const sendEmail = async (options) => {
+export const sendSMTPEmail = async (options) => {
     // "transporter" object with SMTP credentials  
     const transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
@@ -24,8 +65,6 @@ export const sendEmail = async (options) => {
         text: options.text,             // Plain text body
         html: options.html,             // HTML body (optional)
     };
-
-
     try {
         // Sending Mail
         await transporter.sendMail(mailOptions);;
