@@ -168,6 +168,28 @@ export const updateStudentEnrollment = asyncHandler(async (req, res) => {
         throw new Error('Student not found.');
     }
     
+    // CRITICAL: Validation Logic to check Semester
+    if (value.subjectIds.length > 0) {
+        const studentSemester = student.studentDetails.semester;
+        if (!studentSemester) {
+            res.status(400);
+            throw new Error('Cannot enroll subjects for a student with no assigned semester.');
+        }
+
+        const subjectsToEnroll = await Subject.find({ '_id': { $in: value.subjectIds } });
+
+        // Ensure all found subjects match the student's semester
+        const allSubjectsMatchSemester = subjectsToEnroll.every(
+            subject => subject.semester === studentSemester
+        );
+
+        if (!allSubjectsMatchSemester) {
+            res.status(400);
+            throw new Error('One or more subjects do not match the student\'s current semester.');
+        }
+    }
+
+    
     // Replace the existing enrolled subjects with the new array
     student.studentDetails.enrolledSubjects = value.subjectIds;
     
@@ -260,11 +282,18 @@ export const updateTeacherAssignments = asyncHandler(async (req, res) => {
     }
 
     // Validate that the subject exists before assigning it
-    const subjectExists = await Subject.findById(value.subject);
-    if (!subjectExists) {
+    const subject = await Subject.findById(value.subject);
+    if (!subject) {
         res.status(400);
         throw new Error('Invalid Subject ID. Subject does not exist.');
     }
+
+    // Ensure the semester of the subject document matches the semester in the request
+    if (subject.semester !== value.semester) {
+        res.status(400);
+        throw new Error(`Semester mismatch: The selected subject '${subject.name}' belongs to semester ${subject.semester}, not ${value.semester}.`);
+    };
+
 
     const teacher = await User.findById(req.params.teacherId);
     // Allow assigning subjects to both teachers and HODs
@@ -286,7 +315,7 @@ export const updateTeacherAssignments = asyncHandler(async (req, res) => {
         throw new Error('This exact assignment already exists for this teacher.');
     }
 
-    // This logic adds a new assignment.
+    // Adding a new assignment.
     teacher.teacherDetails.assignments.push(value);
     
     await teacher.save();
@@ -550,6 +579,13 @@ export const updateStudentDetails = asyncHandler(async (req, res) => {
         throw new Error('Student not found.');
     }
 
+    // EDGE CASE: If semester is being changed, wipe existing enrollments.
+    const newSemester = value.semester;
+    const currentSemester = student.studentDetails.semester;
+    if (newSemester && newSemester !== currentSemester) {
+        student.studentDetails.enrolledSubjects = [];
+    }    
+    
     // Update only the provided details
     Object.assign(student.studentDetails, value);
     
@@ -561,3 +597,4 @@ export const updateStudentDetails = asyncHandler(async (req, res) => {
         studentDetails: student.studentDetails
     });
 });
+

@@ -33,11 +33,18 @@ export const createSubject = asyncHandler(async (req, res) => {
 });
 
 
-// @desc    Get all subjects
+// @desc    Get all subjects, with optional filtering by semester
 // @route   GET /api/admin/subjects
 // @access  Private/Admin
 export const getSubjects = asyncHandler(async (req, res) => {
-    const subjects = await Subject.find({});
+    
+    const { semester } = req.query; // Check for a semester query parameter
+    const filter = {};
+    
+    if (semester) {
+        filter.semester = semester;
+    }    
+    const subjects = await Subject.find(filter); // Apply filter if it exists
     res.status(200).json(subjects);
 });
 
@@ -68,6 +75,24 @@ export const updateSubject = asyncHandler(async (req, res) => {
         throw new Error('Subject not found.');
     }
  
+    const newSemester = req.body.semester;
+    // If the semester is being changed, we must remove all existing associations.
+    if (newSemester && newSemester !== subject.semester) {
+        // For production, wrap these in a mongoose.startSession() transaction.
+        
+        // Remove subject from all teacher assignments
+        await User.updateMany(
+            { 'teacherDetails.assignments.subject': subject._id },
+            { $pull: { 'teacherDetails.assignments': { subject: subject._id } } }
+        );
+
+        // Remove subject from all student enrollments
+        await User.updateMany(
+            { 'studentDetails.enrolledSubjects': subject._id },
+            { $pull: { 'studentDetails.enrolledSubjects': subject._id } }
+        );
+    }
+
     subject.name = req.body.name || subject.name;
     subject.subjectCode = req.body.subjectCode || subject.subjectCode;
     subject.semester = req.body.semester || subject.semester;
@@ -95,7 +120,13 @@ export const deleteSubject = asyncHandler(async (req, res) => {
         { $pull: { 'teacherDetails.assignments': { subject: subject._id } } }
     );
 
+    // Remove subject from all student enrollments
+    await User.updateMany(
+        { 'studentDetails.enrolledSubjects': subject._id },
+        { $pull: { 'studentDetails.enrolledSubjects': subject._id } }
+    );
+    
     // Delete the subject
     await subject.deleteOne();
-    res.status(200).json({ id: req.params.id, message: 'Subject removed successfully.' });
+    res.status(200).json({ id: req.params.id, message: 'Subject and all its associations removed successfully.' });
 });
