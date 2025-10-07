@@ -47,6 +47,7 @@ const studentApplicationSchema = Joi.object({
     }),
     section: Joi.string().trim().valid('A', 'B', 'C').required(),
     batch: Joi.number().integer().min(2000).required(),
+    semester: Joi.number().integer().min(1).max(4).required(),
 });
 
 
@@ -229,7 +230,7 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
         throw new Error(error.details[0].message);
     }
 
-    const { usn, section, batch } = value;
+    const { usn, section, batch, semester } = value;
 
     // Check if USN is already in use by another verified student
     const usnExists = await User.findOne({ 'studentDetails.usn': usn, 'studentDetails.applicationStatus': 'approved' });
@@ -244,6 +245,7 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
         usn,
         section,
         batch,
+        semester,
         applicationStatus: 'pending',
     };
 

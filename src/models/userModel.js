@@ -89,10 +89,6 @@ const userSchema = mongoose.Schema(
       staffId: { type: String, unique: true, sparse: true },
       department: { type: String },
       assignments: [assignmentSchema],
-      // subjectsTaught: [{ 
-      //   type: mongoose.Schema.Types.ObjectId, 
-      //   ref: 'Subject' 
-		  // }],
     },
   }, 
   { timestamps: true }
