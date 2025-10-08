@@ -117,8 +117,12 @@ export const createClassSession = asyncHandler(async (req, res) => {
     });
     
     // Populate subject details for the response
-    const populatedSession = await ClassSession.findById(classSession._id).populate('subject', 'name subjectCode');
-
+    const populatedSession = await ClassSession.findById(classSession._id)
+        .populate('subject', 'name subjectCode')
+        .populate('attendanceRecords.student', 'name studentDetails.usn');
+    // Select entire 'studentDetails' object.
+    //     .populate('attendanceRecords.student', 'name studentDetails');
+            
     res.status(201).json(populatedSession);
 });
 

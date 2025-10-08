@@ -10,6 +10,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import { socketAuthMiddleware } from './src/middleware/auth.middleware.js';
 import { handleConnection } from './src/api/chat/chat.controller.js';
+import { handleAttendanceConnection } from './src/api/college/attendence.socket.js';
 
 import adminRoutes from './src/api/admin/admin.routes.js';
 import aiRoutes from './src/api/ai/ai.routes.js';
@@ -64,7 +65,12 @@ io.use(socketAuthMiddleware);
 // Main connection handler
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.user.name} (Socket ID: ${socket.id})`);
+
+  // Delegate to the chat handler
   handleConnection(socket, io);
+
+  // Delegate to the attendance handler
+  handleAttendanceConnection(socket); 
 });
 
 // --- Core Middleware ---
