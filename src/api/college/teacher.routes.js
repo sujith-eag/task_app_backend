@@ -9,7 +9,7 @@ import {
     getSessionRoster,
     finalizeAttendance,
     getTeacherSessionsHistory,
-    createSessionReflection,
+    upsertSessionReflection,
     getFeedbackSummaryForSession,
 } from './teacher.controller.js';
 
@@ -29,7 +29,7 @@ router.route('/class-sessions/:sessionId/roster')
 
 router.get('/feedback-summary/:classSessionId', getFeedbackSummaryForSession);
 
-router.post('/session-reflection', createSessionReflection);
+router.put('/session-reflection', upsertSessionReflection);
 
     
    

@@ -1,9 +1,11 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
+import mongoose from 'mongoose';
+
 import User from '../../models/userModel.js';
 import ClassSession from '../../models/classSessionModel.js';
 import TeacherSessionReflection from '../../models/teacherSessionReflectionModel.js';
-
+import Feedback from '../../models/feedbackModel.js'
 
 // --- Helper Function ---
 const generateAttendanceCode = () => {
@@ -184,24 +186,48 @@ export const finalizeAttendance = asyncHandler(async (req, res) => {
 });
 
 
-// @desc    Get a history of class sessions for the logged-in teacher
-// @route   GET /api/teacher/class-sessions
-// @access  Private/Teacher
+/**
+ * @desc    Get a history of class sessions for the logged-in teacher
+ * @route   GET /api/college/teachers/class-sessions
+ * @access  Private/Teacher
+ */
 export const getTeacherSessionsHistory = asyncHandler(async (req, res) => {
+    // Fetch teacher's recent sessions
     const sessions = await ClassSession.find({ teacher: req.user.id })
         .populate('subject', 'name subjectCode')
         .sort({ startTime: -1 }) // Most recent first
-        .limit(15); // Or use query params for pagination
+        .limit(15) // Or use query params for pagination
+        .lean(); // Use .lean() for faster processing of plain JS objects
 
-    res.status(200).json(sessions);
+    // Get all session IDs to check for existing reflections
+    const sessionIds = sessions.map(s => s._id);
+
+    // Find all reflections that match these session IDs in a single query
+    const reflections = await TeacherSessionReflection.find({
+        classSession: { $in: sessionIds }
+    }).select('classSession'); // Only need the ID for checking existence
+
+    // Create a Set of session IDs that have a reflection for quick lookup
+    const sessionsWithReflection = new Set(
+        reflections.map(r => r.classSession.toString())
+    );
+
+    // Map over the original sessions to add the 'hasReflection' flag
+    const sessionsWithMetadata = sessions.map(session => ({
+        ...session,
+        hasReflection: sessionsWithReflection.has(session._id.toString())
+    }));
+
+    res.status(200).json(sessionsWithMetadata);
 });
 
 
-
-// @desc    Submit a reflection for a class session
-// @route   POST /api/college/teachers/session-reflection
-// @access  Private/Teacher
-export const createSessionReflection = asyncHandler(async (req, res) => {
+/**
+ * @desc    Create or update a reflection for a class session (Upsert)
+ * @route   PUT /api/college/teachers/session-reflection
+ * @access  Private/Teacher
+ */
+export const upsertSessionReflection = asyncHandler(async (req, res) => {
     const { error, value } = reflectionSchema.validate(req.body);
     if (error) {
         res.status(400);
@@ -221,13 +247,18 @@ export const createSessionReflection = asyncHandler(async (req, res) => {
         throw new Error('You are not authorized to submit a reflection for this session.');
     }
 
-    const newReflection = await TeacherSessionReflection.create({
-        classSession: classSessionId,
-        teacher: req.user.id,
-        ...reflectionData
-    });
+    // Use findOneAndUpdate with upsert: true
+    const updatedReflection = await TeacherSessionReflection.findOneAndUpdate(
+        { classSession: classSessionId, teacher: req.user.id }, // Find by this query
+        { $set: reflectionData }, // Apply this update
+        { 
+            new: true, // Return the new or updated document
+            upsert: true, // Create the document if it doesn't exist
+            runValidators: true // Ensure schema validation runs on update
+        }
+    );
 
-    res.status(201).json(newReflection);
+    res.status(200).json(updatedReflection);
 });
 
 
@@ -250,7 +281,7 @@ export const getFeedbackSummaryForSession = asyncHandler(async (req, res) => {
 
     // Aggregate student feedback (similar to admin, but we won't return comments)
     const studentFeedbackPromise = Feedback.aggregate([
-        { $match: { classSession: mongoose.Types.ObjectId(classSessionId) } },
+        { $match: { classSession: new mongoose.Types.ObjectId(classSessionId) } },
         {
             $group: {
                 _id: '$classSession',
