@@ -106,14 +106,3 @@ export const generateTasksWithAI = asyncHandler(async (req, res) => {
     res.status(201).json(newTasks);
 });
 
-
-
-// @desc    Test the connection to the LLM service
-// @route   GET /api/tasks/test-llm
-// @access  Public (for now, for easy testing)
-export const testLlmConnection = asyncHandler(async (req, res) => {
-    const responseText = await runTestPrompt();
-    res.status(200).send(responseText);
-});
-
-

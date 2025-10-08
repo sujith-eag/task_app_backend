@@ -8,12 +8,15 @@ import {
     submitFeedback,
     getStudentDashboardStats,
     getSessionsForFeedback,
+    getStudentProfile,
 } from './student.controller.js';
 
 const router = express.Router();
 
 // Apply protect and isStudent middleware to all routes in this file
 router.use(protect, isStudent);
+
+router.get('/me/profile', getStudentProfile);
 
 router.post('/attendance/mark', generalApiLimiter, markAttendance);
 

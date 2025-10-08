@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import ClassSession from '../../models/classSessionModel.js';
 import Feedback from '../../models/feedbackModel.js';
+import User from '../../models/userModel.js';
 import { io } from '../../../server.js';
 
 // Joi schema for marking attendance
@@ -24,6 +25,26 @@ const submitFeedbackSchema = Joi.object({
     improvementSuggestions: Joi.string().trim().max(500).allow('').optional(),
 });
 
+
+
+/**
+ * @desc    Get the profile details for the logged-in student
+ * @route   GET /api/college/students/me/profile
+ * @access  Private/Student
+ */
+export const getStudentProfile = asyncHandler(async (req, res) => {
+    // 'protect' middleware attaches the user to req.user
+    const student = await User.findById(req.user.id)
+        .populate('studentDetails.enrolledSubjects', 'name subjectCode') // Populate subject details
+        .select('studentDetails'); // Select only the studentDetails branch
+
+    if (!student || !student.studentDetails) {
+        res.status(404);
+        throw new Error('Student profile not found.');
+    }
+
+    res.status(200).json(student.studentDetails);
+});
 
 
 // @desc    Mark attendance for a class

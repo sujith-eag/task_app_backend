@@ -24,10 +24,6 @@ export const generateOrRefineTasks = async (userPrompt, history = []) => {
 
       The user's request is: "${userPrompt}"
       
-      // --- CONTEXT (Optional but Recommended) ---
-      // The user making this request has the role of: '${user.role}'
-      // --- END CONTEXT ---
-
       Based on this, generate or update a list of main tasks and relevant sub-tasks.
       Assign a reasonable 'dueDate' for each main task relative to today's date (${new Date().toISOString()}).
       Assign a 'priority' for each task ('Low', 'Medium', or 'High').
