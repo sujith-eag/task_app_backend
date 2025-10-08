@@ -68,8 +68,8 @@ export const markAttendance = asyncHandler(async (req, res) => {
 
     
     // After saving, emit a real-time event to the specific class session's "room"
-    // The room name can be based on the session ID.
-    const room = `session-${session._id}`;
+    // The room name the session ID.
+    const room = session._id.toString();
     io.to(room).emit('student-checked-in', { 
         student: req.user._id, 
         name: req.user.name, 
@@ -77,12 +77,6 @@ export const markAttendance = asyncHandler(async (req, res) => {
         status: true 
     });
     
-    // // Update the student's status to present
-    // await ClassSession.updateOne(
-    //     { _id: session._id, 'attendanceRecords.student': req.user.id },
-    //     { $set: { 'attendanceRecords.$.status': true } }
-    // );
-
     res.status(200).json({ message: 'Attendance marked successfully!' });
 });
 

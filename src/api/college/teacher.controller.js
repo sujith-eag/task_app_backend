@@ -18,7 +18,7 @@ const createSessionSchema = Joi.object({
     type: Joi.string().valid('Theory', 'Lab').required(),
     batch: Joi.number().integer().required(),
     semester: Joi.number().integer().required(),
-    section: Joi.string().valid('A', 'B').required(),
+    section: Joi.string().valid('A', 'B', 'C').required(),
 });
 
 const reflectionSchema = Joi.object({
