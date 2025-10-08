@@ -1,5 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
+import mongoose from 'mongoose';
+
 import User from '../../models/userModel.js';
 import ClassSession from '../../models/classSessionModel.js';
 import Feedback from '../../models/feedbackModel.js';
@@ -366,6 +368,63 @@ export const deleteTeacherAssignment = asyncHandler(async (req, res) => {
 
 
 
+// @desc    Get all users with the teacher or hod role
+// @route   GET /api/admin/teachers
+// @access  Private/Admin
+export const getAllTeachers = asyncHandler(async (req, res) => {
+    const teachers = await User.find({ role: { $in: ['teacher', 'hod'] } })
+        .select('name email teacherDetails')
+        .populate({
+            path: 'teacherDetails.assignments.subject',
+            select: 'name subjectCode'
+        });
+    res.status(200).json(teachers);
+});
+
+
+
+// @desc    Update a student's details by an admin
+// @route   PUT /api/admin/students/:studentId
+// @access  Private/Admin
+export const updateStudentDetails = asyncHandler(async (req, res) => {
+    // Validate the incoming data
+    const { error, value } = updateStudentSchema.validate(req.body);
+    if (error) {
+        res.status(400);
+        throw new Error(error.details[0].message);
+    }
+
+    // Find the user and confirm they are a student
+    const student = await User.findById(req.params.studentId);
+
+    if (!student || student.role !== 'student') {
+        res.status(404);
+        throw new Error('Student not found.');
+    }
+
+    // EDGE CASE: If semester is being changed, wipe existing enrollments.
+    const newSemester = value.semester;
+    const currentSemester = student.studentDetails.semester;
+    if (newSemester && newSemester !== currentSemester) {
+        student.studentDetails.enrolledSubjects = [];
+    }    
+    
+    // Update only the provided details
+    Object.assign(student.studentDetails, value);
+    
+    await student.save();
+
+    // Respond with the updated details
+    res.status(200).json({
+        message: 'Student details updated successfully.',
+        studentDetails: student.studentDetails
+    });
+});
+
+
+
+
+
 // @desc    Get aggregated attendance statistics
 // @route   GET /api/admin/attendance-stats
 // @access  Private/Admin_HOD
@@ -373,57 +432,82 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
     const { teacherId, subjectId, semester } = req.query;
     const matchQuery = {};
 
-    if (teacherId) matchQuery.teacher = teacherId;
-    if (subjectId) matchQuery.subject = subjectId;
+    // Build the initial match query for coarse-grained server-side filtering
+    if (teacherId) matchQuery.teacher = new mongoose.Types.ObjectId(teacherId);
+    if (subjectId) matchQuery.subject = new mongoose.Types.ObjectId(subjectId);
     if (semester) matchQuery.semester = parseInt(semester, 10);
 
     const stats = await ClassSession.aggregate([
-        // Stage 1: Initial filter based on query parameters
+        // Stage 1: Initial filter based on query parameters to reduce dataset size.
         { $match: matchQuery },
-        // Stage 2: Deconstruct the attendanceRecords array
+        
+        // Stage 2: Deconstruct the attendanceRecords array to process each student.
         { $unwind: '$attendanceRecords' },
-        // Stage 3: Group by subject and teacher to calculate stats
+
+        // Stage 3: Group by a more granular key to preserve batch and section details.
         {
             $group: {
-                _id: { subject: '$subject', teacher: '$teacher' },
+                _id: { 
+                    subject: '$subject', 
+                    teacher: '$teacher',
+                    batch: '$batch',
+                    section: '$section',
+                    semester: '$semester'
+                },
                 totalStudents: { $sum: 1 },
                 presentStudents: {
                     $sum: { $cond: [{ $eq: ['$attendanceRecords.status', true] }, 1, 0] }
                 }
             }
         },
-        // Stage 4: Calculate the attendance percentage
+
+        // Stage 4: Populate details from other collections.
+        { $lookup: { 
+            from: 'users', 
+            localField: '_id.teacher', 
+            foreignField: '_id', 
+            as: 'teacherDetails' 
+            } },
+        { $lookup: { 
+            from: 'subjects', 
+            localField: '_id.subject', 
+            foreignField: '_id', 
+            as: 'subjectDetails' 
+            } },
+
+ 
+        // Stage 5: Project the final shape of the data for the frontend.
         {
             $project: {
-                _id: 0,
-                subject: '$_id.subject',
-                teacher: '$_id.teacher',
+                _id: 0, // Exclude the default _id
+                // Create a stable, unique ID for the DataGrid.
+                id: { $concat: [ 
+                    { $toString: "$_id.teacher" }, "-", 
+                    { $toString: "$_id.subject" }, "-",
+                    { $toString: "$_id.batch" }, "-",
+                    "$_id.section"
+                ] },
+                teacherId: '$_id.teacher',
+                subjectId: '$_id.subject',
+                teacherName: { $arrayElemAt: ['$teacherDetails.name', 0] },
+                subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
+                batch: '$_id.batch',
+                section: '$_id.section',
+                semester: '$_id.semester',
                 totalStudents: '$totalStudents',
                 presentStudents: '$presentStudents',
                 attendancePercentage: {
-                    $round: [
-                        { $multiply: [{ $divide: ['$presentStudents', '$totalStudents'] }, 100] },
-                        2
-                    ]
+                    $cond: { // Avoid division by zero if totalStudents is 0
+                        if: { $gt: ['$totalStudents', 0] },
+                        then: { $round: [{ $multiply: [{ $divide: ['$presentStudents', '$totalStudents'] }, 100] }, 2] },
+                        else: 0
+                    }
                 }
-            }
-        },
-        // Stage 5: Populate teacher and subject details for a readable output
-        { $lookup: { from: 'users', localField: 'teacher', foreignField: '_id', as: 'teacherDetails' } },
-        { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: 'subjectDetails' } },
-        // Stage 6: Final projection
-        {
-            $project: {
-                teacherName: { $arrayElemAt: ['$teacherDetails.name', 0] },
-                subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
-                subjectCode: { $arrayElemAt: ['$subjectDetails.subjectCode', 0] },
-                totalStudents: 1,
-                presentStudents: 1,
-                attendancePercentage: 1,
             }
         },
         { $sort: { subjectName: 1, teacherName: 1 } }
     ]);
+
 
     res.status(200).json(stats);
 });
@@ -500,101 +584,178 @@ export const getFeedbackReport = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/feedback-summary
 // @access  Private/Admin_HOD
 export const getFeedbackSummary = asyncHandler(async (req, res) => {
-    const { teacherId, subjectId } = req.query;
+    const { teacherId, subjectId, semester } = req.query;
     const matchQuery = {};
 
-    if (teacherId) matchQuery.teacher = teacherId;
-    if (subjectId) matchQuery.subject = subjectId;
+    // Build the initial match query
+    if (teacherId) matchQuery.teacher = new mongoose.Types.ObjectId(teacherId);
+    if (subjectId) matchQuery.subject = new mongoose.Types.ObjectId(subjectId);
+    if (semester) matchQuery.semester = parseInt(semester, 10);
 
     const summary = await Feedback.aggregate([
+
+        // Stage 1: Filter on the server.
         { $match: matchQuery },
+
+        // Stage 2: Group by teacher and subject.
         {
             $group: {
                 _id: { subject: '$subject', teacher: '$teacher' },
-                averageRating: { $avg: '$rating' },
                 feedbackCount: { $sum: 1 },
-                comments: { $push: '$comment' }
+                // FIX: Calculate the average for each individual rating criterion.
+                avgClarity: { $avg: '$ratings.clarity' },
+                avgEngagement: { $avg: '$ratings.engagement' },
+                avgPace: { $avg: '$ratings.pace' },
+                avgKnowledge: { $avg: '$ratings.knowledge' },
             }
         },
+        
+        // Stage 3: Populate details from other collections.
+        { $lookup: { from: 'users', localField: '_id.teacher', foreignField: '_id', as: 'teacherDetails' } },
+        { $lookup: { from: 'subjects', localField: '_id.subject', foreignField: '_id', as: 'subjectDetails' } },
+
+        // Stage 4: Project the final shape of the data.
         {
             $project: {
                 _id: 0,
-                subject: '$_id.subject',
-                teacher: '$_id.teacher',
-                averageRating: { $round: ['$averageRating', 2] },
-                feedbackCount: 1,
-                comments: 1
-            }
-        },
-        { $lookup: { from: 'users', localField: 'teacher', foreignField: '_id', as: 'teacherDetails' } },
-        { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: 'subjectDetails' } },
-        {
-            $project: {
+                // FIX: Create a stable, unique ID for the DataGrid.
+                id: { $concat: [ { $toString: "$_id.teacher" }, "-", { $toString: "$_id.subject" } ] },
+                teacherId: '$_id.teacher',
+                subjectId: '$_id.subject',
                 teacherName: { $arrayElemAt: ['$teacherDetails.name', 0] },
                 subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
-                subjectCode: { $arrayElemAt: ['$subjectDetails.subjectCode', 0] },
-                averageRating: 1,
                 feedbackCount: 1,
-                comments: 1
+                // Project the individual average ratings.
+                averageRatings: {
+                    clarity: { $round: ['$avgClarity', 2] },
+                    engagement: { $round: ['$avgEngagement', 2] },
+                    pace: { $round: ['$avgPace', 2] },
+                    knowledge: { $round: ['$avgKnowledge', 2] },
+                }
             }
         },
-        { $sort: { averageRating: -1 } }
+        { $sort: { feedbackCount: -1 } }
     ]);
-
     res.status(200).json(summary);
 });
 
 
-// @desc    Get all users with the teacher or hod role
-// @route   GET /api/admin/teachers
-// @access  Private/Admin
-export const getAllTeachers = asyncHandler(async (req, res) => {
-    const teachers = await User.find({ role: { $in: ['teacher', 'hod'] } })
-        .select('name email teacherDetails')
-        .populate({
-            path: 'teacherDetails.assignments.subject',
-            select: 'name subjectCode'
-        });
-    res.status(200).json(teachers);
+
+// admin.controller.js
+
+/**
+ * @desc    Get a detailed report for a specific teacher
+ * @route   GET /api/admin/reports/teacher/:teacherId
+ * @access  Private/Admin_HOD
+ */
+export const getTeacherReport = asyncHandler(async (req, res) => {
+    const { teacherId } = req.params;
+    const { subjectId, semester } = req.query; // Optional filters
+
+    const matchQuery = { teacher: new mongoose.Types.ObjectId(teacherId) };
+    if (subjectId) matchQuery.subject = new mongoose.Types.ObjectId(subjectId);
+    if (semester) matchQuery.semester = parseInt(semester, 10);
+
+    // 1. Aggregate attendance data for the teacher
+    const attendancePromise = ClassSession.aggregate([
+        { $match: matchQuery },
+        { $unwind: '$attendanceRecords' },
+        {
+            $group: {
+                _id: '$subject',
+                totalSessions: { $addToSet: '$_id' }, // Count unique sessions
+                totalStudents: { $sum: 1 },
+                presentStudents: { $sum: { $cond: [{ $eq: ['$attendanceRecords.status', true] }, 1, 0] } }
+            }
+        },
+        { $lookup: { from: 'subjects', localField: '_id', foreignField: '_id', as: 'subjectDetails' } },
+        {
+            $project: {
+                _id: 0,
+                subjectId: '$_id',
+                subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
+                sessionCount: { $size: '$totalSessions' },
+                attendancePercentage: { $round: [{ $multiply: [{ $divide: ['$presentStudents', '$totalStudents'] }, 100] }, 2] }
+            }
+        }
+    ]);
+
+    // 2. Aggregate feedback data for the teacher
+    const feedbackPromise = Feedback.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: '$subject',
+                feedbackCount: { $sum: 1 },
+                avgClarity: { $avg: '$ratings.clarity' },
+                avgEngagement: { $avg: '$ratings.engagement' },
+            }
+        },
+        { $lookup: { from: 'subjects', localField: '_id', foreignField: '_id', as: 'subjectDetails' } },
+        {
+            $project: {
+                _id: 0,
+                subjectId: '$_id',
+                feedbackCount: 1,
+                avgClarity: { $round: ['$avgClarity', 2] },
+                avgEngagement: { $round: ['$avgEngagement', 2] }
+            }
+        }
+    ]);
+    
+    // 3. Get Teacher's own details
+    const teacherDetailsPromise = User.findById(teacherId).select('name staffId department');
+
+    const [attendance, feedback, teacher] = await Promise.all([attendancePromise, feedbackPromise, teacherDetailsPromise]);
+
+    res.status(200).json({ teacher, attendance, feedback });
 });
 
 
+/**
+ * @desc    Get a detailed attendance report for a specific student
+ * @route   GET /api/admin/reports/student/:studentId
+ * @access  Private/Admin_HOD
+ */
+export const getStudentReport = asyncHandler(async (req, res) => {
+    const { studentId } = req.params;
+    const studentObjectId = new mongoose.Types.ObjectId(studentId);
 
-// @desc    Update a student's details by an admin
-// @route   PUT /api/admin/students/:studentId
-// @access  Private/Admin
-export const updateStudentDetails = asyncHandler(async (req, res) => {
-    // Validate the incoming data
-    const { error, value } = updateStudentSchema.validate(req.body);
-    if (error) {
-        res.status(400);
-        throw new Error(error.details[0].message);
-    }
+    // 1. Get student's details
+    const studentDetailsPromise = User.findById(studentObjectId).select('name studentDetails');
 
-    // Find the user and confirm they are a student
-    const student = await User.findById(req.params.studentId);
+    // 2. Aggregate the student's attendance across all their classes
+    const attendancePromise = ClassSession.aggregate([
+        { $match: { 'attendanceRecords.student': studentObjectId } },
+        { $unwind: '$attendanceRecords' },
+        { $match: { 'attendanceRecords.student': studentObjectId } },
+        {
+            $group: {
+                _id: '$subject',
+                totalClasses: { $sum: 1 },
+                attendedClasses: { $sum: { $cond: [{ $eq: ['$attendanceRecords.status', true] }, 1, 0] } }
+            }
+        },
+        { $lookup: { from: 'subjects', localField: '_id', foreignField: '_id', as: 'subjectDetails' } },
+        {
+            $project: {
+                _id: 0,
+                subjectId: '$_id',
+                subjectName: { $arrayElemAt: ['$subjectDetails.name', 0] },
+                totalClasses: 1,
+                attendedClasses: 1,
+                attendancePercentage: { $round: [{ $multiply: [{ $divide: ['$attendedClasses', '$totalClasses'] }, 100] }, 2] }
+            }
+        },
+        { $sort: { attendancePercentage: 1 } }
+    ]);
 
-    if (!student || student.role !== 'student') {
+    const [student, attendance] = await Promise.all([studentDetailsPromise, attendancePromise]);
+
+    if (!student) {
         res.status(404);
-        throw new Error('Student not found.');
+        throw new Error('Student not found');
     }
 
-    // EDGE CASE: If semester is being changed, wipe existing enrollments.
-    const newSemester = value.semester;
-    const currentSemester = student.studentDetails.semester;
-    if (newSemester && newSemester !== currentSemester) {
-        student.studentDetails.enrolledSubjects = [];
-    }    
-    
-    // Update only the provided details
-    Object.assign(student.studentDetails, value);
-    
-    await student.save();
-
-    // Respond with the updated details
-    res.status(200).json({
-        message: 'Student details updated successfully.',
-        studentDetails: student.studentDetails
-    });
+    res.status(200).json({ student, attendance });
 });
-

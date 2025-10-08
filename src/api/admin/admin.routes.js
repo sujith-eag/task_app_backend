@@ -14,10 +14,14 @@ import {
     deleteTeacherAssignment,
     getAllTeachers,
     updateStudentDetails,
-    updateStudentEnrollment
+    updateStudentEnrollment,
+    getStudentReport,
+    getTeacherReport,
 } from './admin.controller.js';
 
+
 const router = express.Router();
+
 
 // --- Application & User Management (Admin Only) ---
 router.route('/applications')
@@ -36,6 +40,7 @@ router.route('/teachers')
     .get(protect, isAdmin, getAllTeachers);    
 
 
+
 // --- Route for managing teacher assignments ---
 router.route('/teachers/:teacherId/assignments')
     .post(protect, isAdmin, updateTeacherAssignments);
@@ -44,11 +49,13 @@ router.route('/teachers/:teacherId/assignments/:assignmentId')
     .delete(protect, isAdmin, deleteTeacherAssignment);
 
 
+// --- Route for managing students data ---
 router.route('/students/:studentId')
     .put(protect, isAdmin, updateStudentDetails);
 
 router.route('/students/:studentId/enrollment')
     .put(protect, isAdmin, updateStudentEnrollment);
+
 
 // --- Reporting & Statistics (Admin & HOD) ---
 router.route('/attendance-stats')
@@ -57,7 +64,9 @@ router.route('/attendance-stats')
 router.route('/feedback-summary')
     .get(protect, isAdminOrHOD, getFeedbackSummary);
 
-
+router.get('/reports/teacher/:teacherId', protect, isAdminOrHOD, getTeacherReport);
+router.get('/reports/student/:studentId', protect, isAdminOrHOD, getStudentReport);
 router.get('/feedback-report/:classSessionId', protect, isAdminOrHOD, getFeedbackReport);
-    
+
+
 export default router;
