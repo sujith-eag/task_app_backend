@@ -233,7 +233,10 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
     const { usn, section, batch, semester } = value;
 
     // Check if USN is already in use by another verified student
-    const usnExists = await User.findOne({ 'studentDetails.usn': usn, 'studentDetails.applicationStatus': 'approved' });
+    const usnExists = await User.findOne({ 
+        'studentDetails.usn': usn, 
+        'studentDetails.applicationStatus': 'approved' 
+    });
     if (usnExists) {
         res.status(400);
         throw new Error('This USN is already registered to an approved student.');

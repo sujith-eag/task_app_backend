@@ -49,7 +49,7 @@ export const getClassCreationData = asyncHandler(async (req, res) => {
     }
 
     res.status(200).json({
-        subjects: teacher.teacherDetails.assignments,
+        assignments: teacher.teacherDetails.assignments,
     });
 });
 
