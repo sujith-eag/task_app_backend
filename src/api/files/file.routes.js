@@ -11,6 +11,7 @@ import { checkFileLimit, uploadFiles as upload } from '../../middleware/file.mid
 import {
     uploadFiles, getUserFiles, getDownloadLink,
     deleteFile, shareFile, manageShareAccess,
+    shareFileWithClass,
                 } from './file.controller.js';
 
 
@@ -29,6 +30,7 @@ router.route('/:id/download')
 
 router.route('/:id/share')
     .post(shareFile)             // POST /api/files/:id/share - Shares a file with another user
+    .post(shareFileWithClass)    // POST /api/files/:id/share-class
     .delete(manageShareAccess);  // DELETE /api/files/:id/share - Revokes access or removes self from a shared file
 
 

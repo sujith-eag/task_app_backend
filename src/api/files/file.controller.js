@@ -29,13 +29,35 @@ export const uploadFiles = asyncHandler(async (req, res) => {
 
     // Upload all files to S3 in parallel for better performance
     const uploadPromises = req.files.map(async (file) => {
+
+        // --- Logic for Unique Filename ---
+        let finalFileName = file.originalname;
+        let counter = 0;
+        let fileExists = true;
+
+        // Check if a file with this name already exists for the user and append a counter if it does
+        while (fileExists) {
+            const existingFile = await File.findOne({ 
+                user: req.user.id, 
+                fileName: finalFileName 
+            });
+            if (existingFile) {
+                counter++;
+                const originalName = file.originalname.substring(0, file.originalname.lastIndexOf('.'));
+                const fileExtension = file.originalname.substring(file.originalname.lastIndexOf('.'));
+                finalFileName = `${originalName} (${counter})${fileExtension}`;
+            } else {
+                fileExists = false;
+            }
+        }
+
         // Upload the file buffer
         const s3Key = await uploadToS3(file);
         
         // Return metadata for files
         return {
             user: req.user.id,
-            fileName: file.originalname,
+            fileName: finalFileName,
             s3Key: s3Key,
             fileType: file.mimetype,
         };

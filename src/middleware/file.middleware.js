@@ -38,20 +38,21 @@ export const checkFileLimit = asyncHandler(async (req, res, next) => {
 const generalFileFilter = (req, file, cb) => {
 
     // Whitelist of allowed MIME types for better security
-    const allowedMimeTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/gif',
+    const ALLOWED_MIMETYPES = [
+        'image/jpeg', 'image/png', 'image/gif',
         'application/pdf',
-        'text/plain',
-        'application/javascript',
-        'text/css',             
-        'text/html',      
-        'application/json',
-        'application/zip',
+        'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/zip', 'application/x-rar-compressed',
+        'text/plain', 'text/csv', 'text/javascript', 'text/css', 'text/html', 'application/json',
+        'application/octet-stream' // fallback for unrecognized file types
     ];
 
-    if (allowedMimeTypes.includes(file.mimetype) || file.mimetype.startsWith('text/')) {
+    if (ALLOWED_MIMETYPES.includes(file.mimetype) || file.mimetype.startsWith('text/')) {
         cb(null, true); // Accept the file
     } else {
         cb(new Error('Invalid file type.'), false); // Reject the file
