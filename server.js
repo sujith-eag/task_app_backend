@@ -17,6 +17,7 @@ import aiRoutes from './src/api/ai/ai.routes.js';
 import authRoutes from './src/api/auth/auth.routes.js';
 import conversationRoutes from './src/api/chat/conversation.routes.js';
 import fileRoutes from './src/api/files/file.routes.js';
+import folderRoutes from './src/api/files/folder.routes.js';
 import studentRoutes from './src/api/college/student.routes.js';
 import subjectRoutes from './src/api/college/subject.routes.js';
 import taskRoutes from './src/api/tasks/task.routes.js';
@@ -98,6 +99,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', conversationRoutes);  // For RESTful chat actions
 app.use('/api/files', fileRoutes);
+app.use('/api/folders', folderRoutes);
 app.use('/api/college/students', studentRoutes);
 app.use('/api/college/subjects', subjectRoutes);
 app.use('/api/college/teachers', teacherRoutes);

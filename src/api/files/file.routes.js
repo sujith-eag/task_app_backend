@@ -4,8 +4,8 @@ const router = express.Router();
 // --- Import Middleware ---
 import { generalApiLimiter, downloadLimiter } from '../../middleware/rateLimiter.middleware.js';
 import { protect } from '../../middleware/auth.middleware.js';
-import { checkFileLimit, uploadFiles as upload } from '../../middleware/file.middleware.js';
-
+import { uploadFiles as upload } from '../../middleware/file.middleware.js';
+import { checkStorageQuota } from '../../middleware/storage.middleware.js';
 
 // --- Import Controllers ---
 import {
@@ -21,7 +21,7 @@ router.use(protect);  // Apply 'protect' middleware to all routes in this file.
 
 router.route('/')
     .get(getUserFiles)      // GET /api/files - Fetches all files owned by or shared with the user
-    .post(checkFileLimit, upload, uploadFiles)    // POST /api/files - Uploads one or more new files
+    .post(checkStorageQuota, upload, uploadFiles)    // POST /api/files - Uploads one or more new files
     .delete(bulkDeleteFiles);   // DELETE /api/files - Delete multiple files
 
 router.route('/:id')

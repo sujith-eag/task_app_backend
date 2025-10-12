@@ -13,8 +13,8 @@ import User from '../../models/userModel.js';
 const shareFileSchema = Joi.object({
     // ID of the user to share the file with should be present
     userIdToShareWith: Joi.string().required(),
+    expiresAt: Joi.date().iso().optional() // Allow optional expiration date
 });
-
 
 
 // @desc    Upload one or more files
@@ -61,6 +61,10 @@ export const uploadFiles = asyncHandler(async (req, res) => {
             fileName: finalFileName,
             s3Key: s3Key,
             fileType: file.mimetype,
+            size: file.size, // Add file size
+            isFolder: false, // All uploads are files, not folders
+            parentId: null, // Uploaded to the root directory by default
+            path: ',', // Represents the root path
         };
     });
 
@@ -137,8 +141,12 @@ export const getDownloadLink = asyncHandler(async (req, res) => {
     // Verify the user has permission to access this file
     // Mongoose ObjectId needs to be converted to a string for comparison
     const isOwner = file.user.toString() === loggedInUserId;
-    const isSharedWith = file.sharedWith.some(id => id.toString() === loggedInUserId);
-
+    
+    // --- PERMISSION CHECK ---
+    const isSharedWith = file.sharedWith.some(share => 
+        share.user.toString() === loggedInUserId && 
+        (!share.expiresAt || share.expiresAt > new Date())
+    );
     if (!isOwner && !isSharedWith) {
         res.status(403); // 403 Forbidden: user is authenticated but not authorized
         throw new Error('You do not have permission to access this file.');
@@ -251,7 +259,7 @@ export const shareFile = asyncHandler(async (req, res) => {
         throw new Error(error.details[0].message);
     }
 
-    const { userIdToShareWith } = value;
+    const { userIdToShareWith, expiresAt } = value;
 	// Fetching file and the user-to-share-with in parallel
     const [file, userToShareWith] = await Promise.all([
         File.findById(req.params.id),
@@ -283,14 +291,13 @@ export const shareFile = asyncHandler(async (req, res) => {
         throw new Error('This user is not accepting shared files at the moment.');
     }
     // Check if the file is already shared with this user
-    if (file.sharedWith.some(id => id.toString() === userIdToShareWith)) {
+    if (file.sharedWith.some(share => share.user.toString() === userIdToShareWith)) {
         res.status(400);
         throw new Error('File is already shared with this user.');
     }
     
-
-    // Add the user to the sharedWith array and save
-    file.sharedWith.push(userIdToShareWith);
+    // Add the user to the sharedWith array as an object
+    file.sharedWith.push({ user: userIdToShareWith, expiresAt: expiresAt || null });
     await file.save();
 
     // Populate user details for a clean frontend response
@@ -339,10 +346,10 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
     }
 
     // --- Update the document ---
-    // Use MongoDB's $pull operator to remove the ID from the array
+    // MongoDB's $pull operator to remove the ID from the array
     const updatedFile = await File.findByIdAndUpdate(
         req.params.id,
-        { $pull: { sharedWith: userToRemoveIdFrom } },
+        { $pull: { sharedWith: { user: userToRemoveIdFrom } } },
         { new: true } // Return the updated document
     )
     .populate('user', 'name avatar')

@@ -3,12 +3,13 @@ import bcrypt from 'bcryptjs';
 import Joi from 'joi';
 
 import User from '../../models/userModel.js';
+import File from '../../models/fileModel.js';
 
 import { deleteFile as deleteFromS3 } from '../../services/s3.service.js';
 import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
 import { populateTemplate } from '../../utils/emailTemplate.js';
 import { sendEmail } from '../../services/email.service.js';
-
+import { QUOTAS } from '../../middleware/storage.middleware.js';
 
 // Joi Schema for profile updates
 const updateUserSchema = Joi.object({
@@ -272,3 +273,33 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
         console.error("Failed to send application confirmation email:", emailError);
     }
 });
+
+
+// @desc    Get the current user's storage usage and quota
+// @route   GET /api/users/me/storage
+// @access  Private
+export const getStorageUsage = asyncHandler(async (req, res) => {
+    
+    const quota = QUOTAS[req.user.role] || QUOTAS.user;
+    
+    const usage = await File.aggregate([
+        { $match: { user: req.user._id } },
+        {
+            $group: {
+                _id: null,
+                totalSize: { $sum: '$size' },
+                fileCount: { $sum: 1 }
+            }
+        }
+    ]);
+
+    const { totalSize, fileCount } = usage[0] || { totalSize: 0, fileCount: 0 };
+
+    res.status(200).json({
+        usageBytes: totalSize,
+        quotaBytes: quota.maxSizeMB * 1024 * 1024,
+        fileCount: fileCount,
+        fileLimit: quota.maxFiles
+    });
+});
+

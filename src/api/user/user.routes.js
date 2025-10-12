@@ -3,7 +3,8 @@ const router = express.Router();
 
 import { 
     getCurrentUser, updateCurrentUser, changePassword,
-    getDiscoverableUsers, updateUserAvatar, applyAsStudent
+    getDiscoverableUsers, updateUserAvatar, applyAsStudent,
+    getStorageUsage
     } from './user.controller.js';
 
 // --- middleware ---
@@ -46,5 +47,7 @@ router.get('/discoverable', getDiscoverableUsers);
 // Student Application
 router.post('/apply-student', applyAsStudent);
 
+// To get users current usage of file storage
+router.get('/me/storage', protect, getStorageUsage);
 
 export default router;
