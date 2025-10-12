@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
+import NodeCache from 'node-cache'
 
 import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
 import { getSignedUrl as getS3SignedUrl } from '../../services/s3.service.js';
@@ -114,6 +115,10 @@ export const getUserFiles = asyncHandler(async (req, res) => {
 
 
 
+// Initializing a cache. The stdTTL (standard time-to-live) is in seconds.
+// set to 55 seconds, slightly less than the URL's 60-second expiry.
+const urlCache = new NodeCache({ stdTTL: 55 });
+
 
 // @desc    Get a temporary, pre-signed URL to download a file
 // @route   GET /api/files/:id/download
@@ -139,9 +144,23 @@ export const getDownloadLink = asyncHandler(async (req, res) => {
         throw new Error('You do not have permission to access this file.');
     }
 
-    // Generate secure, temporary download link using our S3 service
+    // --- Caching Logic ---
+    const cacheKey = `download-url:${fileId}:${loggedInUserId}`;
+    const cachedUrl = urlCache.get(cacheKey);
+
+    if (cachedUrl) {
+        // Cache Hit: A valid URL exists, send it back immediately.
+        return res.status(200).json({ url: cachedUrl });
+    }
+
+    // Cache Miss: No valid URL in cache, so we generate a new one.    
+    
+    // Generate secure, temporary download link using S3 service
     const downloadUrl = await getS3SignedUrl(file.s3Key, file.fileName);
 
+    // Store the new URL in the cache before sending it.
+    urlCache.set(cacheKey, downloadUrl);
+        
     // Send the URL back
     res.status(200).json({ url: downloadUrl });
 });
@@ -179,6 +198,45 @@ export const deleteFile = asyncHandler(async (req, res) => {
     res.status(200).json({ message: 'File deleted successfully.' });
 });
 
+
+
+// @desc    Delete multiple files
+// @route   DELETE /api/files
+// @access  Private
+export const bulkDeleteFiles = asyncHandler(async (req, res) => {
+    const { fileIds } = req.body; // Expect an array of file IDs
+
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        res.status(400);
+        throw new Error('File IDs must be provided as an array.');
+    }
+
+    // Find all files that match the IDs AND belong to the logged-in user
+    const filesToDelete = await File.find({
+        '_id': { $in: fileIds },
+        'user': req.user.id
+    });
+
+    // Security Check: If the number of found files doesn't match the number of requested IDs,
+    // it means the user tried to delete a file they don't own.
+    if (filesToDelete.length !== fileIds.length) {
+        res.status(403);
+        throw new Error('You do not have permission to delete one or more of the selected files.');
+    }
+
+    // Proceed with deletion
+    // 1. Delete from S3 in parallel
+    const deleteS3Promises = filesToDelete.map(file => deleteFromS3(file.s3Key));
+    await Promise.all(deleteS3Promises);
+
+    // 2. Delete from MongoDB in a single operation
+    await File.deleteMany({
+        '_id': { $in: fileIds },
+        'user': req.user.id
+    });
+
+    res.status(200).json({ message: `${filesToDelete.length} files deleted successfully.` });
+});
 
 
 

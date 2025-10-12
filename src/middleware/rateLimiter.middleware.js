@@ -16,3 +16,12 @@ export const generalApiLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+// Stricter limiter for file downloads
+export const downloadLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 20, // Limit each IP to 20 download requests per 10 minutes
+    message: 'Too many download requests from this IP, please try again after 15 minutes.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});

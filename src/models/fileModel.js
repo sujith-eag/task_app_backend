@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
 const fileSchema = new mongoose.Schema({
+    
+    // --- Core Fields ---    
     user: { // The user who owns/uploaded the file
         type: mongoose.Schema.Types.ObjectId,
         required: true,
@@ -17,16 +19,51 @@ const fileSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    size: { // File size in bytes
+        type: Number, 
+        required: true
+    },
     fileType: { // The MIME type of the file, e.g., 'image/jpeg'
         type: String,
         required: true
     },
-    sharedWith: [{ // Array of users this file is shared with
+    // --- Folder Structure ---
+    isFolder: { type: Boolean, default: false },
+    parentId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'File', // Self-referencing relationship
+        default: null, // null = in root directory
+        index: true
+    },
+    // --- Path Enumeration for Efficient Hierarchy Queries ---
+    path: {
+        type: String,
+        index: true // CRITICAL for performance
+    },
+    // --- Analytics & Metadata ---
+    downloadCount: { type: Number, default: 0 },
+    tags: [{ type: String, trim: true }],
+    // --- Status & Sharing ---
+    status: {
+        type: String,
+        enum: ['available', 'processing', 'archived', 'error'],
+        default: 'available'
+    },
+    sharedWith: [{ // Array of users this file is shared with
+		user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+		expiresAt: { type: Date, default: null } // null means no expiration
     }],
-     // For sharing with an entire class dynamically
-    sharedWithClass: {
+    publicShare: {
+        code: {
+            type: String,
+            unique: true,
+            sparse: true, // Allows multiple documents to have a null 'code'
+            index: true   // For fast lookups
+        },
+        isActive: { type: Boolean, default: false },
+        expiresAt: { type: Date }
+    },
+    sharedWithClass: { // For sharing with an entire class dynamically
         subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
         batch: { type: Number },
         semester: { type: Number },

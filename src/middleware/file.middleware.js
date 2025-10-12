@@ -72,7 +72,6 @@ const generalUploader = multer({
 
 // --- Multer Middleware: Avatar Image Upload ---
 
-
 // Filters files to ensure only images are accepted.
 const avatarFileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
