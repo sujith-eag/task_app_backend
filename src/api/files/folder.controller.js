@@ -32,7 +32,7 @@ export const createFolder = asyncHandler(async (req, res) => {
     }
 
     // Create the new folder document
-    const newFolder = await File.create({
+    let newFolder = await File.create({
         user: req.user._id,
         fileName: folderName,
         isFolder: true,
@@ -44,6 +44,8 @@ export const createFolder = asyncHandler(async (req, res) => {
         size: 0,
     });
 
+    newFolder = await newFolder.populate('user', 'name avatar');
+
     res.status(201).json(newFolder);
 });
 
@@ -51,6 +53,51 @@ export const createFolder = asyncHandler(async (req, res) => {
 const moveItemSchema = Joi.object({
     newParentId: Joi.string().allow(null).required(),
 });
+
+
+
+// @desc    Delete a folder and all its contents
+// @route   DELETE /api/folders/:folderId
+// @access  Private
+export const deleteFolder = asyncHandler(async (req, res) => {
+    const { folderId } = req.params;
+    const userId = req.user._id;
+
+    // 1. Find the folder to be deleted
+    const folder = await File.findOne({ _id: folderId, user: userId, isFolder: true });
+    if (!folder) {
+        res.status(404);
+        throw new Error('Folder not found.');
+    }
+
+    // 2. Find all descendant files and folders using the path
+    const descendants = await File.find({
+        user: userId,
+        path: { $regex: `^${folder.path}${folderId},` }
+    });
+
+    // 3. Collect all S3 keys from descendant files
+    const s3KeysToDelete = descendants
+        .filter(item => !item.isFolder)
+        .map(item => item.s3Key);
+
+    // Also add the folder itself if it's somehow a file (shouldn't happen)
+    const allItemsToDelete = [...descendants.map(d => d._id), folder._id];
+
+    // 4. Perform deletions in parallel
+    if (s3KeysToDelete.length > 0) {
+        // This needs a bulk delete function in your s3.service.js
+        // For now, let's conceptualize it
+        // await deleteMultipleFilesFromS3(s3KeysToDelete);
+    }
+    
+    await File.deleteMany({ _id: { $in: allItemsToDelete } });
+
+    res.status(200).json({ message: 'Folder and all its contents deleted successfully.' });
+});
+
+
+
 
 // @desc    Move a file or folder to a new location
 // @route   PATCH /api/files/:itemId/move

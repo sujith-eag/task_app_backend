@@ -12,7 +12,7 @@ import {
     uploadFiles, getUserFiles, getDownloadLink,
     deleteFile, bulkDeleteFiles,
     shareFile, manageShareAccess,
-    shareFileWithClass,
+    shareFileWithClass, createPublicShare, revokePublicShare
                 } from './file.controller.js';
 
 
@@ -35,5 +35,8 @@ router.route('/:id/share')
     .post(shareFileWithClass)    // POST /api/files/:id/share-class
     .delete(manageShareAccess);  // DELETE /api/files/:id/share - Revokes access or removes self from a shared file
 
-
+router.route('/:id/public-share')
+    .post(createPublicShare)      // POST /api/files/:id/public-share
+    .delete(revokePublicShare);    // DELETE /api/files/:id/public-share
+    
 export default router;

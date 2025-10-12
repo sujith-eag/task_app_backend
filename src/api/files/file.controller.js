@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import NodeCache from 'node-cache'
+import crypto from 'crypto';
 
 import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
 import { getSignedUrl as getS3SignedUrl } from '../../services/s3.service.js';
@@ -17,6 +18,62 @@ const shareFileSchema = Joi.object({
 });
 
 
+
+// @desc    Create or update a public share link for a file
+// @route   POST /api/files/:id/public-share
+// @access  Private
+export const createPublicShare = asyncHandler(async (req, res) => {
+    const file = await File.findOne({ _id: req.params.id, user: req.user._id });
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found or you do not have permission.');
+    }
+
+    const { duration } = req.body; // e.g., '1-hour', '1-day', '7-days'
+    let expiresAt = new Date();
+    switch (duration) {
+        case '1-hour': expiresAt.setHours(expiresAt.getHours() + 1); break;
+        case '1-day': expiresAt.setDate(expiresAt.getDate() + 1); break;
+        case '7-days': expiresAt.setDate(expiresAt.getDate() + 7); break;
+        default: res.status(400); throw new Error('Invalid duration specified.');
+    }
+
+    // Generate a secure, URL-friendly, 8-character code
+    // const code = crypto.randomBytes(6).toString('base64url').substring(0, 8);
+
+    // Generate a secure, 8-character alphanumeric code (0-9, a-f)
+    const code = crypto.randomBytes(4).toString('hex');
+    
+    file.publicShare = {
+        code: code,
+        isActive: true,
+        expiresAt: expiresAt,
+    };
+
+    await file.save();
+    res.status(200).json(file.publicShare);
+});
+
+
+// @desc    Revoke a public share link for a file
+// @route   DELETE /api/files/:id/public-share
+// @access  Private
+export const revokePublicShare = asyncHandler(async (req, res) => {
+    const file = await File.findOne({ _id: req.params.id, user: req.user._id });
+    if (!file) {
+        res.status(404);
+        throw new Error('File not found or you do not have permission.');
+    }
+
+    file.publicShare = {
+        isActive: false,
+    };
+
+    await file.save();
+    res.status(200).json({ message: 'Public share link has been revoked.' });
+});
+
+
 // @desc    Upload one or more files
 // @route   POST /api/files
 // @access  Private
@@ -28,6 +85,21 @@ export const uploadFiles = asyncHandler(async (req, res) => {
         throw new Error('No files uploaded.');
     }
 
+    // Get parentId and find the parent folder
+    const { parentId } = req.body;
+    let parentFolder = null;
+    let newPath = ','; // Default to root path
+
+    if (parentId && parentId !== 'null') {
+        parentFolder = await File.findOne({ _id: parentId, user: req.user._id, isFolder: true });
+        if (!parentFolder) {
+            res.status(404);
+            throw new Error('Parent folder not found.');
+        }
+        newPath = parentFolder.path + parentId + ',';
+    }
+
+    
     // Upload all files to S3 in parallel for better performance
     const uploadPromises = req.files.map(async (file) => {
 
@@ -63,8 +135,8 @@ export const uploadFiles = asyncHandler(async (req, res) => {
             fileType: file.mimetype,
             size: file.size, // Add file size
             isFolder: false, // All uploads are files, not folders
-            parentId: null, // Uploaded to the root directory by default
-            path: ',', // Represents the root path
+            parentId: parentFolder ? parentFolder._id : null, // Uploaded to the root directory by default
+            path: newPath, // Represents the root path
         };
     });
 
@@ -87,34 +159,50 @@ export const uploadFiles = asyncHandler(async (req, res) => {
 // @access  Private
 export const getUserFiles = asyncHandler(async (req, res) => {
     const user = req.user;
-    let query;
+    const { parentId } = req.query; // Get patentId from query string    
 
-    // If the user is a student, create an expanded query to find files shared with their class
-    if (user.role === 'student' && user.studentDetails) {
-        query = {
-            $or: [
-                { user: user._id }, // Files they own
-                { sharedWith: user._id }, // Files shared directly with them
-                { // --- Files shared with their specific class ---
-                    'sharedWithClass.batch': user.studentDetails.batch,
-                    'sharedWithClass.section': user.studentDetails.section,
-                    'sharedWithClass.semester': user.studentDetails.semester
-                }
-            ]
-        };
-    } else {
-        // Original query for non-student roles
-        query = {
-            $or: [
-                { user: user._id },
-                { sharedWith: user._id }
-            ]
-        };
+    // Determine the target parentId: null for root, or the provided ID
+    const targetParentId = parentId === 'null' || !parentId ? null : parentId;
+
+    // This query finds items in a specific directory that the user has permission to see.
+    let query = {
+        $and: [
+            { parentId: targetParentId }, // 1. Item must be in the target directory
+            {
+                // 2. User must have permission
+                $or: [
+                    { user: user._id }, // They own it
+                    { 'sharedWith.user': user._id }, // It's shared directly with them
+                    // Add student-specific class share logic if applicable
+                    ...(user.role === 'student' && user.studentDetails ? [{
+                        'sharedWithClass.batch': user.studentDetails.batch,
+                        'sharedWithClass.section': user.studentDetails.section,
+                        'sharedWithClass.semester': user.studentDetails.semester
+                    }] : [])
+                ]
+            }
+        ]
+    };
+
+    // Fetch the files and the current folder data in parallel
+    const [files, currentFolder] = await Promise.all([
+        File.find(query)
+        .sort({ isFolder: -1, fileName: 1 }) // Show Folder first
+        .populate('user', 'name avatar'),  // Populate the owner's details for frontend display
+        targetParentId ? File.findById(targetParentId).select('fileName path') : null
+    ]);
+
+    let breadcrumbs = [];
+    if (currentFolder && currentFolder.path) {
+        // The path is like ",id1,id2,", so we get IDs by splitting and filtering
+        const ancestorIds = currentFolder.path.split(',').filter(id => id);
+        if (ancestorIds.length > 0) {
+            breadcrumbs = await File.find({ _id: { $in: ancestorIds } }).select('fileName');
+        }
     }
-    const files = await File.find(query)
-        .sort({ createdAt: -1 })  // Sort by most recently created
-        .populate('user', 'name avatar');  // Populate the owner's details for frontend display
-    res.status(200).json(files);
+
+    // Return a structured object with all necessary data
+    res.status(200).json({ files, currentFolder, breadcrumbs });
 });
 
 

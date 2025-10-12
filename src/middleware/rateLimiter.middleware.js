@@ -25,3 +25,11 @@ export const downloadLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+export const publicApiLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 70, // Limit each IP to 15 requests per 10 minutes
+    message: 'Too many requests from this IP, please try again after 10 minutes.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});

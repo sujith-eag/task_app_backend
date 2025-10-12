@@ -297,7 +297,7 @@ export const getStorageUsage = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         usageBytes: totalSize,
-        quotaBytes: quota.maxSizeMB * 1024 * 1024,
+        quotaBytes: quota.maxSizeMB === Infinity ? null : quota.maxSizeMB * 1024 * 1024,
         fileCount: fileCount,
         fileLimit: quota.maxFiles
     });
