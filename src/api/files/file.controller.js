@@ -2,11 +2,12 @@ import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import NodeCache from 'node-cache'
 import crypto from 'crypto';
+import archiver from 'archiver';
 
 import { uploadFile as uploadToS3 } from '../../services/s3.service.js';
 import { getSignedUrl as getS3SignedUrl } from '../../services/s3.service.js';
 import { deleteFile as deleteFromS3 } from '../../services/s3.service.js';
-
+import { getFileStream as getS3FileStream } from '../../services/s3.service.js';
 import File from '../../models/fileModel.js';
 import User from '../../models/userModel.js';
 
@@ -261,6 +262,72 @@ export const getDownloadLink = asyncHandler(async (req, res) => {
     res.status(200).json({ url: downloadUrl });
 });
 
+
+// @desc    Download multiple files as a zip archive
+// @route   POST /api/files/bulk-download
+// @access  Private
+export const bulkDownloadFiles = asyncHandler(async (req, res) => {
+    // Parse the incoming JSON string from the form
+    let fileIds;
+    try {
+        // req.body.fileIds is a string like "[\"id1\",\"id2\"]"
+        fileIds = JSON.parse(req.body.fileIds);
+    } catch (e) {
+        res.status(400);
+        throw new Error('Invalid format for file IDs.');
+    }
+
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        res.status(400);
+        throw new Error('File IDs must be provided as an array.');
+    }
+
+    // --- Security Check ---
+    // Find all files that the user has permission to access.
+    const accessibleFiles = await File.find({
+        _id: { $in: fileIds },
+        $or: [
+            { user: req.user._id }, // The user is the owner
+            { 'sharedWith.user': req.user._id } // The file is shared with the user
+        ]
+    });
+
+    // If the number of found files doesn't match the requested count, it's a permission error.
+    if (accessibleFiles.length !== fileIds.length) {
+        res.status(403);
+        throw new Error('You do not have permission to download one or more of the selected files.');
+    }
+
+    // --- Stream Zipping ---
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="EagleCampus-Files.zip"');
+
+    const archive = archiver('zip', {
+        zlib: { level: 9 } // Set compression level.
+    });
+
+    // Handle errors and warnings
+    archive.on('warning', (err) => {
+      if (err.code !== 'ENOENT') throw err;
+    });
+    archive.on('error', (err) => {
+      throw err;
+    });
+
+    // Pipe the archive stream directly to the response
+    archive.pipe(res);
+
+    // Loop through accessible files, stream from S3, and append to the archive
+    for (const file of accessibleFiles) {
+        if (!file.isFolder) { // Ensure we only add files, not folders
+            const stream = await getS3FileStream(file.s3Key);
+            archive.append(stream, { name: file.fileName });
+        }
+    }
+
+    // Finalize the archive, which automatically ends the response stream
+    await archive.finalize();
+});
 
 
 

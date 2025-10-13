@@ -80,3 +80,19 @@ export const getSignedUrl = async (fileKey, fileName) => {
     
     return url;
 };
+
+
+/**
+ * Retrieves a readable stream for a file from S3.
+ * @param {string} fileKey - The key of the file in S3.
+ * @returns {Promise<ReadableStream>} - A promise that resolves to the file's readable stream.
+ */
+export const getFileStream = async (fileKey) => {
+    const getParams = {
+        Bucket: bucketName,
+        Key: fileKey,
+    };
+    const command = new GetObjectCommand(getParams);
+    const response = await s3Client.send(command);
+    return response.Body;
+};

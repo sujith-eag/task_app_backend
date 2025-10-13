@@ -9,10 +9,12 @@ import { checkStorageQuota } from '../../middleware/storage.middleware.js';
 
 // --- Import Controllers ---
 import {
-    uploadFiles, getUserFiles, getDownloadLink,
+    uploadFiles, getUserFiles, 
+    getDownloadLink, bulkDownloadFiles,
     deleteFile, bulkDeleteFiles,
     shareFile, manageShareAccess,
-    shareFileWithClass, createPublicShare, revokePublicShare
+    shareFileWithClass, createPublicShare, 
+    revokePublicShare
                 } from './file.controller.js';
 
 
@@ -28,9 +30,12 @@ router.route('/:id')
     .delete(deleteFile);   // DELETE /api/files/:id - Deletes a file owned by the user
 
 router.route('/:id/download')
-    .get(downloadLimiter, getDownloadLink);      // GET /api/files/:id/download - Gets a temporary download link
+    .get(downloadLimiter, getDownloadLink);    // GET /api/files/:id/download - Gets a temporary download link
 
-router.route('/:id/share')
+router.route('/bulk-download')
+    .post(bulkDownloadFiles);    // POST /api/files/bulk-download
+
+    router.route('/:id/share')
     .post(shareFile)             // POST /api/files/:id/share - Shares a file with another user
     .post(shareFileWithClass)    // POST /api/files/:id/share-class
     .delete(manageShareAccess);  // DELETE /api/files/:id/share - Revokes access or removes self from a shared file
