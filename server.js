@@ -16,9 +16,17 @@ import adminRoutes from './src/api/admin/admin.routes.js';
 import aiRoutes from './src/api/ai/ai.routes.js';
 import authRoutes from './src/api/auth/auth.routes.js';
 import conversationRoutes from './src/api/chat/conversation.routes.js';
-import fileRoutes from './src/api/files/file.routes.js';
+
+// File Routes
+import deleteFileRoutes from './src/api/files/routes/delete.routes.js';
+import downloadFileRoutes from './src/api/files/routes/download.routes.js';
+import itemFileRoutes from './src/api/files/routes/item.routes.js';
+import shareFileRoutes from './src/api/files/routes/share.routes.js';
+import uploadFileRoutes from './src/api/files/routes/upload.routes.js';
 import folderRoutes from './src/api/files/folder.routes.js';
 import publicFileRoutes from './src/api/files/public.routes.js';
+import academicFileRoutes from './src/api/files/academicFile.routes.js';
+
 import studentRoutes from './src/api/college/student.routes.js';
 import subjectRoutes from './src/api/college/subject.routes.js';
 import taskRoutes from './src/api/tasks/task.routes.js';
@@ -99,9 +107,21 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', conversationRoutes);  // For RESTful chat actions
-app.use('/api/files', fileRoutes);
+
+// File Routes
+app.use('/api/files/items', itemFileRoutes);
+app.use('/api/files/uploads', uploadFileRoutes);
+app.use('/api/files/downloads', downloadFileRoutes);
+app.use('/api/files/shares', shareFileRoutes);
+app.use('/api/files/delete', deleteFileRoutes);
+
+// Public and Academic
+app.use('/api/public/files', publicFileRoutes);       // For public access (e.g., POST /api/public/download)
+app.use('/api/college/files', academicFileRoutes); // For academic file sharing (e.g., POST /api/college/files/:id/share-class)
+
 app.use('/api/folders', folderRoutes);
-app.use('/api/public', publicFileRoutes);  // For File public file sharing
+
+// College routes
 app.use('/api/college/students', studentRoutes);
 app.use('/api/college/subjects', subjectRoutes);
 app.use('/api/college/teachers', teacherRoutes);
