@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Joi from 'joi';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 import File from '../../../models/fileModel.js';
 import User from '../../../models/userModel.js';
@@ -169,7 +170,7 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
         throw new Error('You do not have permission to perform this action.');
     }
 
-    // --- Update the document ---
+    // --- Updated the document ---
     // MongoDB's $pull operator to remove the ID from the array
     const updatedFile = await File.findByIdAndUpdate(
         req.params.id,
@@ -177,8 +178,48 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
         { new: true } // Return the updated document
     )
     .populate('user', 'name avatar')
-    .populate('sharedWith', 'name avatar');
+    .populate('sharedWith.user', 'name avatar');
 
     res.status(200).json(updatedFile);
 });
 
+
+
+// @desc    Remove the logged-in user from the share list of multiple files
+// @route   DELETE /api/files/shares/bulk-remove
+// @access  Private
+export const bulkRemoveShareAccess = asyncHandler(async (req, res) => {
+    const { fileIds } = req.body;
+    const userId = req.user._id;
+
+    // --- 1. Stricter Input Validation ---
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        res.status(400);
+        throw new Error('A non-empty array of fileIds must be provided.');
+    }
+
+    // Ensure all provided IDs are valid before proceeding
+    for (const id of fileIds) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            res.status(400);
+            throw new Error(`Invalid file ID format: ${id}`);
+        }
+    }
+            
+    // --- Precise & Resilient Query ---
+    // This query now has an added condition: it will only match documents
+    // where the current user is actually in the 'sharedWith' array.
+    // If access was already revoked, that file is simply ignored.
+    const result = await File.updateMany(
+        {
+            _id: { $in: fileIds },
+            'sharedWith.user': userId 
+        },
+        { $pull: { sharedWith: { user: userId } } }
+    );
+
+    res.status(200).json({
+        message: `${result.modifiedCount} file(s) successfully removed from your shared list.`,
+        ids: fileIds // Return original IDs for frontend state update
+    });
+});

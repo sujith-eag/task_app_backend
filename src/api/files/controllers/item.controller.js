@@ -40,19 +40,31 @@ export const getUserFiles = asyncHandler(async (req, res) => {
     const [files, currentFolder] = await Promise.all([
         File.find(query)
         .sort({ isFolder: -1, fileName: 1 }) // Show Folder first
-        .populate('user', 'name avatar'),  // Populate the owner's details for frontend display
+        .populate('user', 'name avatar')  // Populate the owner's details for frontend display
+        .populate('sharedWith.user', 'name avatar'), // to get user details within the sharedWith array
+
         targetParentId ? File.findById(targetParentId).select('fileName path') : null
     ]);
 
+
     let breadcrumbs = [];
     if (currentFolder && currentFolder.path) {
-        // The path is like ",id1,id2,", so we get IDs by splitting and filtering
+            // The path is like ",id1,id2,", so we get IDs by splitting and filtering
         const ancestorIds = currentFolder.path.split(',').filter(id => id);
         if (ancestorIds.length > 0) {
-            breadcrumbs = await File.find({ _id: { $in: ancestorIds } }).select('fileName');
+            // Fetch all ancestors in one go
+            const ancestors = await File.find({ 
+                _id: { $in: ancestorIds } })
+                .select('fileName');
+            
+            // Create a map for instant lookup to guarantee correct order
+            const ancestorMap = new Map(ancestors.map(anc => [anc._id.toString(), anc]));
+            
+            // Reconstruct the breadcrumbs in the correct path order
+            breadcrumbs = ancestorIds.map(id => ancestorMap.get(id));
         }
     }
-
+    
     // Return a structured object with all necessary data
     res.status(200).json({ files, currentFolder, breadcrumbs });
 });

@@ -7,7 +7,8 @@ import { protect } from '../../../middleware/auth.middleware.js';
 
 // --- Import Controllers ---
 import { shareFile, manageShareAccess, 
-    createPublicShare, revokePublicShare,  } from '../controllers/share.controller.js'
+    createPublicShare, 
+    revokePublicShare, bulkRemoveShareAccess  } from '../controllers/share.controller.js'
                 
 router.use(generalApiLimiter); // Apply the general rate limiter to all file routes.
 router.use(protect);  // Apply 'protect' middleware to all routes in this file.
@@ -19,5 +20,8 @@ router.route('/:id/share')
 router.route('/:id/public-share')
     .post(createPublicShare)
     .delete(revokePublicShare);
+
+router.delete('/bulk-remove', bulkRemoveShareAccess);  // bulk-remove from shared files
+
 
 export default router;
