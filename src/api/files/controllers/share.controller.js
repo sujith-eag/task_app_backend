@@ -6,6 +6,9 @@ import mongoose from 'mongoose';
 import File from '../../../models/fileModel.js';
 import User from '../../../models/userModel.js';
 
+// Helper: normalize logged in user id from various auth middlewares
+const getLoggedInUserId = (req) => String(req.user?.id ?? req.user?._id ?? req.user?.userId ?? req.user?.user_id ?? '');
+
 
 const shareFileSchema = Joi.object({
     // ID of the user to share the file with should be present
@@ -21,7 +24,8 @@ const shareFileSchema = Joi.object({
 // @route   POST /api/files/shares/:id/public-share
 // @access  Private
 export const createPublicShare = asyncHandler(async (req, res) => {
-    const file = await File.findOne({ _id: req.params.id, user: req.user._id });
+    const loggedInUserId = getLoggedInUserId(req);
+    const file = await File.findOne({ _id: req.params.id, user: loggedInUserId });
     if (!file) {
         res.status(404);
         throw new Error('File not found or you do not have permission.');
@@ -57,19 +61,26 @@ export const createPublicShare = asyncHandler(async (req, res) => {
 // @route   DELETE /api/sharesfiles/:id/public-share
 // @access  Private
 export const revokePublicShare = asyncHandler(async (req, res) => {
-    const file = await File.findOne({ _id: req.params.id, user: req.user._id });
-    if (!file) {
+    const loggedInUserId = getLoggedInUserId(req);
+    // Use an atomic update to avoid writing null into a uniquely indexed field
+    const updated = await File.findOneAndUpdate(
+        { _id: req.params.id, user: loggedInUserId },
+        {
+            $set: { 'publicShare.isActive': false },
+            $unset: { 'publicShare.code': '', 'publicShare.expiresAt': '' }
+        },
+        { new: true }
+    ).select('+publicShare') // ensure publicShare field is returned
+    .exec();
+
+    if (!updated) {
         res.status(404);
         throw new Error('File not found or you do not have permission.');
     }
 
-    file.publicShare = {
-        isActive: false,
-    };
-
-    await file.save();
-    res.status(200).json({ message: 'Public share link has been revoked.' });
+    return res.status(200).json({ message: 'Public share link has been revoked.', publicShare: updated.publicShare });
 });
+
 
 
 
@@ -85,6 +96,7 @@ export const shareFile = asyncHandler(async (req, res) => {
     }
 
     const { userIdToShareWith, expiresAt } = value;
+    const loggedInUserId = getLoggedInUserId(req);
     // Fetching file and the user-to-share-with in parallel
     const [file, userToShareWith] = await Promise.all([
         File.findById(req.params.id),
@@ -96,7 +108,7 @@ export const shareFile = asyncHandler(async (req, res) => {
         throw new Error('File not found.');
     }
     // Verify that the person making the request is the owner
-    if (file.user.toString() !== req.user.id) {
+    if (file.user.toString() !== loggedInUserId) {
         res.status(403);
         throw new Error('You do not have permission to share this file.');
     }
@@ -106,7 +118,7 @@ export const shareFile = asyncHandler(async (req, res) => {
         throw new Error('User to share with not found.');
     }
     // Prevent owner from sharing a file with themselves
-    if (userIdToShareWith === req.user.id) {
+    if (userIdToShareWith === loggedInUserId) {
         res.status(400);
         throw new Error('You cannot share a file with yourself.');
     }
@@ -125,13 +137,11 @@ export const shareFile = asyncHandler(async (req, res) => {
     file.sharedWith.push({ user: userIdToShareWith, expiresAt: expiresAt || null });
     await file.save();
 
-    // Populate user details for a clean frontend response
+    // Populate user details for a clean frontend response (note nested populate)
     await file.populate([
-        { path: 'user', select: 'name avatar' }, 
-        { path: 'sharedWith', select: 'name avatar' }
-        ]);
-    // await file.populate('user', 'name avatar');
-    // await file.populate('sharedWith', 'name avatar');
+        { path: 'user', select: 'name avatar' },
+        { path: 'sharedWith.user', select: 'name avatar' }
+    ]);
 
     res.status(200).json(file);
 });
@@ -148,37 +158,42 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
         throw new Error('File not found.');
     }
 
-    const loggedInUserId = req.user.id;
-    const isOwner = file.user.toString() === loggedInUserId;
+    const loggedInUserId = getLoggedInUserId(req);
+    const isOwner = String(file.user) === loggedInUserId;
+    const { userIdToRemove } = req.body || {};
 
-    const { userIdToRemove } = req.body; // This may be undefined, then it's the shared user
-
-    // --- Logic to determine which user to remove ---
-    let userToRemoveIdFrom = null;
-
-    // Scenario A: The owner is revoking access for a specific user
+    // Determine the intended target user id for removal
+    let targetUserId = null;
     if (isOwner && userIdToRemove) {
-        userToRemoveIdFrom = userIdToRemove;
-    } 
-    // Scenario B: A shared user is removing their own access (no request body needed)
-    else if (!isOwner && !userIdToRemove) {
-        userToRemoveIdFrom = loggedInUserId;
-    } 
-    // Invalid scenarios (owner not specifying who to remove, or non-owner trying to remove someone else)
-    else {
+        targetUserId = String(userIdToRemove);
+    } else if (!isOwner && !userIdToRemove) {
+        // Shared user removing themself
+        targetUserId = loggedInUserId;
+    } else if (isOwner && !userIdToRemove) {
+        res.status(400);
+        throw new Error('Owner must specify a userIdToRemove when revoking access.');
+    } else {
         res.status(403);
         throw new Error('You do not have permission to perform this action.');
     }
 
-    // --- Updated the document ---
-    // MongoDB's $pull operator to remove the ID from the array
-    const updatedFile = await File.findByIdAndUpdate(
-        req.params.id,
-        { $pull: { sharedWith: { user: userToRemoveIdFrom } } },
-        { new: true } // Return the updated document
+    // Attempt to pull the shared entry only if it exists; return idempotent success if nothing changed
+    const updatedFile = await File.findOneAndUpdate(
+        { _id: req.params.id, 'sharedWith.user': new mongoose.Types.ObjectId(targetUserId) },
+        { $pull: { sharedWith: { user: new mongoose.Types.ObjectId(targetUserId) } } },
+        { new: true }
     )
     .populate('user', 'name avatar')
     .populate('sharedWith.user', 'name avatar');
+
+    if (!updatedFile) {
+        // No matching entry found; treat as idempotent success and return current state
+        const current = await File.findById(req.params.id)
+            .populate('user', 'name avatar')
+            .populate('sharedWith.user', 'name avatar');
+        // Return the current file object (consistent with success path)
+        return res.status(200).json(current);
+    }
 
     res.status(200).json(updatedFile);
 });
@@ -190,7 +205,7 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
 // @access  Private
 export const bulkRemoveShareAccess = asyncHandler(async (req, res) => {
     const { fileIds } = req.body;
-    const userId = req.user._id;
+    const userId = getLoggedInUserId(req);
 
     // --- 1. Stricter Input Validation ---
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
@@ -213,9 +228,9 @@ export const bulkRemoveShareAccess = asyncHandler(async (req, res) => {
     const result = await File.updateMany(
         {
             _id: { $in: fileIds },
-            'sharedWith.user': userId 
+            'sharedWith.user': new mongoose.Types.ObjectId(userId)
         },
-        { $pull: { sharedWith: { user: userId } } }
+        { $pull: { sharedWith: { user: new mongoose.Types.ObjectId(userId) } } }
     );
 
     res.status(200).json({

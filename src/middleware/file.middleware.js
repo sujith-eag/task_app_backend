@@ -8,6 +8,7 @@ const storage = multer.memoryStorage();
 const generalFileFilter = (req, file, cb) => {
     const ALLOWED_MIMETYPES = [
         'image/jpeg', 'image/png', 'image/gif',
+        'image/webp', 'image/svg+xml',
         'application/pdf',
         'application/msword', 
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -16,6 +17,15 @@ const generalFileFilter = (req, file, cb) => {
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/zip', 'application/x-rar-compressed',
+        'application/vnd.rar', 'application/x-7z-compressed',
+        // Programming & notebooks
+        'text/x-python', // .py
+        'application/x-ipynb+json', // .ipynb
+        'application/typescript', // .ts
+        'text/x-java-source', // .java
+        'text/x-csrc', 'text/x-c++src', // .c, .cpp
+        'text/markdown', // .md
+        'application/x-sh', // .sh
         'text/plain', 'text/csv', 'text/javascript', 'text/css', 'text/html', 'application/json',
         'application/octet-stream' // fallback for unrecognized file types
     ];
@@ -32,7 +42,7 @@ const generalUploader = multer({
     storage,
     fileFilter: generalFileFilter,
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10 MB limit
+        fileSize: 20 * 1024 * 1024, // 20 MB limit
     },
 });
 
@@ -58,8 +68,8 @@ const avatarUploader = multer({
 
 
 // --- Named Exports ---
-// Middleware to handle up to 4 files from a field named 'files'
-export const uploadFiles = generalUploader.array('files', 4);
+// Middleware to handle up to 8 files from a field named 'files'
+export const uploadFiles = generalUploader.array('files', 8);
 
 // Middleware to handle a single file from a field named 'avatar'
 export const uploadAvatar = avatarUploader.single('avatar');
