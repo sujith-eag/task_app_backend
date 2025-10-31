@@ -13,8 +13,6 @@
 // These imports will be gradually replaced as we refactor each domain
 
 import adminRoutes from '../api/admin/admin.routes.js';
-import aiRoutes from '../api/ai/ai.routes.js';
-import conversationRoutes from '../api/chat/conversation.routes.js';
 
 // Keep academic files for now (will be refactored in academics module)
 import academicFileRoutes from '../api/files/academicFile.routes.js';
@@ -48,6 +46,12 @@ import publicShareRoutes from '../api/shares/routes/public.routes.js';
 // Trash module (refactored - Phase 0)
 import trashRoutes from '../api/trash/routes/trash.routes.js';
 
+// Chat module (refactored - Phase 0)
+import chatRoutes from '../api/chat/routes/chat.routes.js';
+
+// AI module (refactored - Phase 0)
+import aiRoutes from '../api/ai/routes/ai.routes.js';
+
 // Example future refactorings:
 // import academicsRoutes from '../api/academics/routes/materials.routes.js';
 // import assignmentsRoutes from '../api/assignments/routes/assignments.routes.js';
@@ -67,12 +71,6 @@ export const mountRoutes = (app) => {
     // Admin routes
     app.use('/api/admin', adminRoutes);
     
-    // AI routes
-    app.use('/api/ai', aiRoutes);
-    
-    // Chat/Messaging routes
-    app.use('/api/chat', conversationRoutes);
-    
     // OLD FILE ROUTES - DEPRECATED (replaced by files_new, shares, trash modules)
     // These will be removed after testing new routes
     // app.use('/api/files/items', itemFileRoutes);
@@ -90,9 +88,6 @@ export const mountRoutes = (app) => {
     app.use('/api/college/students', studentRoutes);
     app.use('/api/college/subjects', subjectRoutes);
     app.use('/api/college/teachers', teacherRoutes);
-    
-    // Task management routes
-    app.use('/api/tasks', tasksRoutes);
 
     // ========================================
     // NEW PHASE_0 ROUTES (REFACTORED)
@@ -114,6 +109,15 @@ export const mountRoutes = (app) => {
     
     // Trash module (refactored) ✅
     app.use('/api/trash', trashRoutes);        // Soft-delete & recovery
+    
+    // Chat module (refactored) ✅
+    app.use('/api/chat', chatRoutes);          // Real-time messaging
+    
+    // AI module (refactored) ✅
+    app.use('/api/ai', aiRoutes);              // AI-powered task generation
+    
+    // Tasks module (refactored) ✅
+    app.use('/api/tasks', tasksRoutes);        // Task management
     
     // Mount additional refactored domain routes here as we create them
     // Example:

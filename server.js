@@ -9,7 +9,7 @@ import http from 'http';
 
 import { Server } from 'socket.io';
 import { socketAuthMiddleware } from './src/api/_common/middleware/auth.middleware.js';
-import { handleConnection } from './src/api/chat/chat.controller.js';
+import { handleConnection } from './src/api/chat/socket/chat.socket.js';
 import { handleAttendanceConnection } from './src/api/college/attendence.socket.js';
 
 import mountRoutes from './src/routes/index.js';
