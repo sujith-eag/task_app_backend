@@ -14,17 +14,9 @@
 
 import adminRoutes from '../api/admin/admin.routes.js';
 import aiRoutes from '../api/ai/ai.routes.js';
-// import authRoutes from '../api/auth/auth.routes.js'; // OLD - Replaced by refactored auth module
 import conversationRoutes from '../api/chat/conversation.routes.js';
 
-// File Routes (current structure)
-import deleteFileRoutes from '../api/files/routes/delete.routes.js';
-import downloadFileRoutes from '../api/files/routes/download.routes.js';
-import itemFileRoutes from '../api/files/routes/item.routes.js';
-import shareFileRoutes from '../api/files/routes/share.routes.js';
-import uploadFileRoutes from '../api/files/routes/upload.routes.js';
-import folderRoutes from '../api/files/folder.routes.js';
-import publicFileRoutes from '../api/files/public.routes.js';
+// Keep academic files for now (will be refactored in academics module)
 import academicFileRoutes from '../api/files/academicFile.routes.js';
 
 // College routes
@@ -33,7 +25,6 @@ import subjectRoutes from '../api/college/subject.routes.js';
 import teacherRoutes from '../api/college/teacher.routes.js';
 
 import taskRoutes from '../api/tasks/task.routes.js';
-// import userRoutes from '../api/user/user.routes.js'; // OLD - Replaced by users module
 
 // ========================================
 // NEW PHASE_0 ROUTES (REFACTORED)
@@ -46,10 +37,18 @@ import usersRoutes from '../api/users/routes/users.routes.js';
 // Auth module (refactored)
 import authRoutes from '../api/auth/routes/auth.routes.js';
 
+// Files module (refactored - Phase 0)
+import filesRoutes from '../api/files_new/routes/file.routes.js';
+import foldersRoutes from '../api/files_new/routes/folder.routes.js';
+
+// Shares module (refactored - Phase 0)
+import sharesRoutes from '../api/shares/routes/shares.routes.js';
+import publicShareRoutes from '../api/shares/routes/public.routes.js';
+
+// Trash module (refactored - Phase 0)
+import trashRoutes from '../api/trash/routes/trash.routes.js';
+
 // Example future refactorings:
-// import filesRoutes from '../api/files/routes/file.routes.js';
-// import sharesRoutes from '../api/shares/routes/shares.routes.js';
-// import trashRoutes from '../api/trash/routes/trash.routes.js';
 // import academicsRoutes from '../api/academics/routes/materials.routes.js';
 // import assignmentsRoutes from '../api/assignments/routes/assignments.routes.js';
 // import submissionsRoutes from '../api/assignments/routes/submissions.routes.js';
@@ -71,22 +70,20 @@ export const mountRoutes = (app) => {
     // AI routes
     app.use('/api/ai', aiRoutes);
     
-    // Auth routes (OLD - commented out, replaced by refactored version)
-    // app.use('/api/auth', authRoutes);
-    
     // Chat/Messaging routes
     app.use('/api/chat', conversationRoutes);
     
-    // File management routes (current structure)
-    app.use('/api/files/items', itemFileRoutes);
-    app.use('/api/files/uploads', uploadFileRoutes);
-    app.use('/api/files/downloads', downloadFileRoutes);
-    app.use('/api/files/shares', shareFileRoutes);
-    app.use('/api/files/delete', deleteFileRoutes);
-    app.use('/api/folders', folderRoutes);
+    // OLD FILE ROUTES - DEPRECATED (replaced by files_new, shares, trash modules)
+    // These will be removed after testing new routes
+    // app.use('/api/files/items', itemFileRoutes);
+    // app.use('/api/files/uploads', uploadFileRoutes);
+    // app.use('/api/files/downloads', downloadFileRoutes);
+    // app.use('/api/files/shares', shareFileRoutes);
+    // app.use('/api/files/delete', deleteFileRoutes);
+    // app.use('/api/folders', folderRoutes);
+    // app.use('/api/public/files', publicFileRoutes);
     
-    // Public and academic file routes
-    app.use('/api/public/files', publicFileRoutes);
+    // Keep academic files for now (will be refactored in academics module)
     app.use('/api/college/files', academicFileRoutes);
     
     // College management routes
@@ -96,9 +93,6 @@ export const mountRoutes = (app) => {
     
     // Task management routes
     app.use('/api/tasks', taskRoutes);
-    
-    // User profile routes (OLD - commented out, replaced by refactored version)
-    // app.use('/api/users', userRoutes);
 
     // ========================================
     // NEW PHASE_0 ROUTES (REFACTORED)
@@ -110,11 +104,19 @@ export const mountRoutes = (app) => {
     // Auth module (refactored) ✅
     app.use('/api/auth', authRoutes);
     
+    // Files module (refactored) ✅
+    app.use('/api/files', filesRoutes);        // Personal file operations
+    app.use('/api/folders', foldersRoutes);    // Folder management
+    
+    // Shares module (refactored) ✅
+    app.use('/api/shares', sharesRoutes);      // Authenticated sharing
+    app.use('/api/public', publicShareRoutes); // Public access (no auth)
+    
+    // Trash module (refactored) ✅
+    app.use('/api/trash', trashRoutes);        // Soft-delete & recovery
+    
     // Mount additional refactored domain routes here as we create them
     // Example:
-    // app.use('/api/files', filesRoutes);
-    // app.use('/api/shares', sharesRoutes);
-    // app.use('/api/trash', trashRoutes);
     // app.use('/api/academics', academicsRoutes);
     // app.use('/api/assignments', assignmentsRoutes);
     // app.use('/api/submissions', submissionsRoutes);

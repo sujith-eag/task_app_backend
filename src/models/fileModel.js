@@ -68,6 +68,21 @@ const fileSchema = new mongoose.Schema({
         batch: { type: Number },
         semester: { type: Number },
         section: { type: String }
+    },
+    // --- Soft Delete Support ---
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true // For efficient queries of active/deleted files
+    },
+    deletedAt: {
+        type: Date,
+        default: null
+    },
+    deletedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
     }
 }, { timestamps: true });
 
