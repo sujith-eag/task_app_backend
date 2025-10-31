@@ -19,6 +19,7 @@ import {
     getTeacherReport,
 } from './admin.controller.js';
 
+import subjectsRoutes from './controllers/subjects.routes.js';
 
 const router = express.Router();
 
@@ -67,6 +68,10 @@ router.route('/feedback-summary')
 router.get('/reports/teacher/:teacherId', protect, isAdminOrHOD, getTeacherReport);
 router.get('/reports/student/:studentId', protect, isAdminOrHOD, getStudentReport);
 router.get('/feedback-report/:classSessionId', protect, isAdminOrHOD, getFeedbackReport);
+
+
+// --- Subject Management (Admin Only) ---
+router.use('/subjects', protect, isAdmin, subjectsRoutes);
 
 
 export default router;

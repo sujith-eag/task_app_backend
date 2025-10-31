@@ -24,7 +24,7 @@ import studentRoutes from '../api/college/student.routes.js';
 import subjectRoutes from '../api/college/subject.routes.js';
 import teacherRoutes from '../api/college/teacher.routes.js';
 
-import taskRoutes from '../api/tasks/task.routes.js';
+import tasksRoutes from '../api/tasks/routes/tasks.routes.js';
 
 // ========================================
 // NEW PHASE_0 ROUTES (REFACTORED)
@@ -38,8 +38,8 @@ import usersRoutes from '../api/users/routes/users.routes.js';
 import authRoutes from '../api/auth/routes/auth.routes.js';
 
 // Files module (refactored - Phase 0)
-import filesRoutes from '../api/files_new/routes/file.routes.js';
-import foldersRoutes from '../api/files_new/routes/folder.routes.js';
+import filesRoutes from '../api/files/routes/file.routes.js';
+import foldersRoutes from '../api/files/routes/folder.routes.js';
 
 // Shares module (refactored - Phase 0)
 import sharesRoutes from '../api/shares/routes/shares.routes.js';
@@ -92,7 +92,7 @@ export const mountRoutes = (app) => {
     app.use('/api/college/teachers', teacherRoutes);
     
     // Task management routes
-    app.use('/api/tasks', taskRoutes);
+    app.use('/api/tasks', tasksRoutes);
 
     // ========================================
     // NEW PHASE_0 ROUTES (REFACTORED)
