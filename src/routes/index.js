@@ -12,14 +12,11 @@
 // ========================================
 // These imports will be gradually replaced as we refactor each domain
 
-import adminRoutes from '../api/admin/admin.routes.js';
-
 // Keep academic files for now (will be refactored in academics module)
 import academicFileRoutes from '../api/files/academicFile.routes.js';
 
 // College routes
 import studentRoutes from '../api/college/student.routes.js';
-import subjectRoutes from '../api/college/subject.routes.js';
 import teacherRoutes from '../api/college/teacher.routes.js';
 
 import tasksRoutes from '../api/tasks/routes/tasks.routes.js';
@@ -52,6 +49,9 @@ import chatRoutes from '../api/chat/routes/chat.routes.js';
 // AI module (refactored - Phase 0)
 import aiRoutes from '../api/ai/routes/ai.routes.js';
 
+// Admin module (refactored - Phase 0)
+import adminRoutes from '../api/admin/routes/admin.routes.js';
+
 // Example future refactorings:
 // import academicsRoutes from '../api/academics/routes/materials.routes.js';
 // import assignmentsRoutes from '../api/assignments/routes/assignments.routes.js';
@@ -68,25 +68,11 @@ export const mountRoutes = (app) => {
     // LEGACY ROUTES (TO BE REFACTORED)
     // ========================================
     
-    // Admin routes
-    app.use('/api/admin', adminRoutes);
-    
-    // OLD FILE ROUTES - DEPRECATED (replaced by files_new, shares, trash modules)
-    // These will be removed after testing new routes
-    // app.use('/api/files/items', itemFileRoutes);
-    // app.use('/api/files/uploads', uploadFileRoutes);
-    // app.use('/api/files/downloads', downloadFileRoutes);
-    // app.use('/api/files/shares', shareFileRoutes);
-    // app.use('/api/files/delete', deleteFileRoutes);
-    // app.use('/api/folders', folderRoutes);
-    // app.use('/api/public/files', publicFileRoutes);
-    
     // Keep academic files for now (will be refactored in academics module)
     app.use('/api/college/files', academicFileRoutes);
     
     // College management routes
     app.use('/api/college/students', studentRoutes);
-    app.use('/api/college/subjects', subjectRoutes);
     app.use('/api/college/teachers', teacherRoutes);
 
     // ========================================
@@ -115,6 +101,9 @@ export const mountRoutes = (app) => {
     
     // AI module (refactored) ✅
     app.use('/api/ai', aiRoutes);              // AI-powered task generation
+    
+    // Admin module (refactored) ✅
+    app.use('/api/admin', adminRoutes);        // Admin management (5 sub-domains)
     
     // Tasks module (refactored) ✅
     app.use('/api/tasks', tasksRoutes);        // Task management
