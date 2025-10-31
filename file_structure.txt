@@ -1,0 +1,276 @@
+.
+├── src
+│   ├── api
+│   │   ├── academics
+│   │   │   ├── academics.routes.js
+│   │   │   └── README.md
+│   │   ├── admin
+│   │   │   ├── applications
+│   │   │   │   ├── controllers
+│   │   │   │   │   └── applications.controller.js
+│   │   │   │   ├── routes
+│   │   │   │   │   └── applications.routes.js
+│   │   │   │   ├── services
+│   │   │   │   │   └── applications.service.js
+│   │   │   │   ├── validators
+│   │   │   │   │   └── applications.validator.js
+│   │   │   │   ├── index.js
+│   │   │   │   └── README.md
+│   │   │   ├── management
+│   │   │   │   ├── controllers
+│   │   │   │   │   └── management.controller.js
+│   │   │   │   ├── routes
+│   │   │   │   │   └── management.routes.js
+│   │   │   │   ├── services
+│   │   │   │   │   └── management.service.js
+│   │   │   │   ├── validators
+│   │   │   │   │   └── management.validator.js
+│   │   │   │   ├── index.js
+│   │   │   │   └── README.md
+│   │   │   ├── reports
+│   │   │   │   ├── controllers
+│   │   │   │   │   └── reports.controller.js
+│   │   │   │   ├── routes
+│   │   │   │   │   └── reports.routes.js
+│   │   │   │   ├── services
+│   │   │   │   │   └── reports.service.js
+│   │   │   │   ├── index.js
+│   │   │   │   └── README.md
+│   │   │   ├── routes
+│   │   │   │   └── admin.routes.js
+│   │   │   ├── subjects
+│   │   │   │   ├── controllers
+│   │   │   │   │   └── subjects.controller.js
+│   │   │   │   ├── routes
+│   │   │   │   │   └── subjects.routes.js
+│   │   │   │   ├── services
+│   │   │   │   │   └── subjects.service.js
+│   │   │   │   ├── validators
+│   │   │   │   │   └── subjects.validator.js
+│   │   │   │   ├── index.js
+│   │   │   │   └── README.md
+│   │   │   ├── teacher-assignments
+│   │   │   │   ├── controllers
+│   │   │   │   │   └── teacher-assignments.controller.js
+│   │   │   │   ├── routes
+│   │   │   │   │   └── teacher-assignments.routes.js
+│   │   │   │   ├── services
+│   │   │   │   │   └── teacher-assignments.service.js
+│   │   │   │   ├── validators
+│   │   │   │   │   └── teacher-assignments.validator.js
+│   │   │   │   ├── index.js
+│   │   │   │   └── README.md
+│   │   │   └── README.md
+│   │   ├── ai
+│   │   │   ├── controllers
+│   │   │   │   └── ai.controller.js
+│   │   │   ├── routes
+│   │   │   │   └── ai.routes.js
+│   │   │   ├── services
+│   │   │   │   └── ai.service.js
+│   │   │   ├── validators
+│   │   │   │   └── ai.validator.js
+│   │   │   └── README.md
+│   │   ├── assignments
+│   │   │   ├── assignments.routes.js
+│   │   │   └── README.md
+│   │   ├── attendance
+│   │   │   ├── controllers
+│   │   │   │   ├── stats.controller.js
+│   │   │   │   ├── student.controller.js
+│   │   │   │   └── teacher.controller.js
+│   │   │   ├── policies
+│   │   │   │   └── attendance.policies.js
+│   │   │   ├── routes
+│   │   │   │   ├── stats.routes.js
+│   │   │   │   ├── student.routes.js
+│   │   │   │   └── teacher.routes.js
+│   │   │   ├── services
+│   │   │   │   ├── marking.service.js
+│   │   │   │   ├── session.service.js
+│   │   │   │   └── stats.service.js
+│   │   │   ├── validators
+│   │   │   │   └── attendance.validators.js
+│   │   │   ├── attendance.routes.js
+│   │   │   ├── attendance.socket.js
+│   │   │   └── README.md
+│   │   ├── auth
+│   │   │   ├── controllers
+│   │   │   │   └── auth.controller.js
+│   │   │   ├── policies
+│   │   │   │   └── auth.policies.js
+│   │   │   ├── routes
+│   │   │   │   └── auth.routes.js
+│   │   │   ├── services
+│   │   │   │   └── auth.service.js
+│   │   │   ├── validators
+│   │   │   │   └── auth.validators.js
+│   │   │   └── README.md
+│   │   ├── chat
+│   │   │   ├── controllers
+│   │   │   │   ├── conversations.controller.js
+│   │   │   │   └── messages.controller.js
+│   │   │   ├── routes
+│   │   │   │   └── chat.routes.js
+│   │   │   ├── services
+│   │   │   │   ├── conversations.service.js
+│   │   │   │   └── messages.service.js
+│   │   │   ├── socket
+│   │   │   │   └── chat.socket.js
+│   │   │   ├── validators
+│   │   │   │   └── chat.validator.js
+│   │   │   └── README.md
+│   │   ├── college
+│   │   │   ├── attendence.socket.js
+│   │   │   ├── student.controller.js
+│   │   │   ├── student.routes.js
+│   │   │   ├── teacher.controller.js
+│   │   │   └── teacher.routes.js
+│   │   ├── _common
+│   │   │   ├── http
+│   │   │   │   ├── asyncHandler.js
+│   │   │   │   └── pagination.js
+│   │   │   ├── middleware
+│   │   │   │   ├── aiLimit.middleware.js
+│   │   │   │   ├── auth.middleware.js
+│   │   │   │   ├── error.middleware.js
+│   │   │   │   ├── file.middleware.js
+│   │   │   │   ├── quota.middleware.js
+│   │   │   │   ├── rateLimit.middleware.js
+│   │   │   │   └── rbac.middleware.js
+│   │   │   ├── utils
+│   │   │   │   ├── caching.js
+│   │   │   │   ├── objectId.js
+│   │   │   │   └── sanitize.js
+│   │   │   └── README.md
+│   │   ├── feedback
+│   │   │   ├── controllers
+│   │   │   │   ├── student.controller.js
+│   │   │   │   └── teacher.controller.js
+│   │   │   ├── routes
+│   │   │   │   ├── student.routes.js
+│   │   │   │   └── teacher.routes.js
+│   │   │   ├── services
+│   │   │   │   ├── feedback.service.js
+│   │   │   │   └── reflection.service.js
+│   │   │   ├── validators
+│   │   │   │   └── feedback.validators.js
+│   │   │   ├── feedback.routes.js
+│   │   │   └── README.md
+│   │   ├── files
+│   │   │   ├── controllers
+│   │   │   │   ├── file.controller.js
+│   │   │   │   └── folder.controller.js
+│   │   │   ├── policies
+│   │   │   │   └── file.policies.js
+│   │   │   ├── routes
+│   │   │   │   ├── file.routes.js
+│   │   │   │   └── folder.routes.js
+│   │   │   ├── services
+│   │   │   │   ├── file.service.js
+│   │   │   │   ├── folder.service.js
+│   │   │   │   └── path.service.js
+│   │   │   ├── validators
+│   │   │   │   └── file.validators.js
+│   │   │   └── README.md
+│   │   ├── shares
+│   │   │   ├── controllers
+│   │   │   │   ├── public.controller.js
+│   │   │   │   └── shares.controller.js
+│   │   │   ├── policies
+│   │   │   │   └── shares.policies.js
+│   │   │   ├── routes
+│   │   │   │   ├── public.routes.js
+│   │   │   │   └── shares.routes.js
+│   │   │   ├── services
+│   │   │   │   └── shares.service.js
+│   │   │   ├── validators
+│   │   │   │   └── shares.validators.js
+│   │   │   └── README.md
+│   │   ├── tasks
+│   │   │   ├── controllers
+│   │   │   │   ├── subtasks.controller.js
+│   │   │   │   └── tasks.controller.js
+│   │   │   ├── routes
+│   │   │   │   └── tasks.routes.js
+│   │   │   ├── services
+│   │   │   │   ├── subtasks.service.js
+│   │   │   │   └── tasks.service.js
+│   │   │   ├── validators
+│   │   │   │   └── tasks.validator.js
+│   │   │   └── README.md
+│   │   ├── trash
+│   │   │   ├── controllers
+│   │   │   │   └── trash.controller.js
+│   │   │   ├── policies
+│   │   │   │   └── trash.policies.js
+│   │   │   ├── routes
+│   │   │   │   └── trash.routes.js
+│   │   │   ├── services
+│   │   │   │   └── trash.service.js
+│   │   │   ├── validators
+│   │   │   │   └── trash.validators.js
+│   │   │   └── README.md
+│   │   └── users
+│   │       ├── controllers
+│   │       │   └── users.controller.js
+│   │       ├── policies
+│   │       │   └── users.policies.js
+│   │       ├── routes
+│   │       │   └── users.routes.js
+│   │       ├── services
+│   │       │   └── users.service.js
+│   │       ├── validators
+│   │       │   └── users.validators.js
+│   │       └── README.md
+│   ├── config
+│   │   └── passport-setup.js
+│   ├── connect
+│   │   └── database.js
+│   ├── middleware
+│   │   ├── auth.middleware.js
+│   │   ├── checkAIDailyLimit.js
+│   │   ├── error.middleware.js
+│   │   ├── file.middleware.js
+│   │   ├── rateLimiter.middleware.js
+│   │   ├── role.middleware.js
+│   │   ├── storage.middleware.js
+│   │   └── validation.middleware.js
+│   ├── models
+│   │   ├── attendanceRecordModel.js
+│   │   ├── classSessionModel.js
+│   │   ├── conversationModel.js
+│   │   ├── feedbackModel.js
+│   │   ├── fileModel.js
+│   │   ├── fileshareModel.js
+│   │   ├── messageModel.js
+│   │   ├── promptModel.js
+│   │   ├── subjectModel.js
+│   │   ├── taskModel.js
+│   │   ├── teacherSessionReflectionModel.js
+│   │   └── userModel.js
+│   ├── routes
+│   │   └── index.js
+│   ├── services
+│   │   ├── s3
+│   │   │   ├── keybuilder.js
+│   │   │   ├── README.md
+│   │   │   └── s3.service.js
+│   │   ├── email.service.js
+│   │   ├── llm.service.js
+│   │   └── s3.service.js
+│   └── utils
+│       ├── emailTemplates
+│       │   ├── facultyPromotion.html
+│       │   ├── passwordReset.html
+│       │   ├── studentApplicationApproved.html
+│       │   ├── studentApplicationPending.html
+│       │   └── verificationEmail.html
+│       └── emailTemplate.js
+├── Dockerfile
+├── file_structure.txt
+├── package.json
+├── package-lock.json
+└── server.js
+
+107 directories, 187 files
