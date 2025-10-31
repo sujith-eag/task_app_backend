@@ -30,6 +30,104 @@ This document tracks the progress of refactoring the Eagle Campus backend from t
 - [x] Documented `_common/` with comprehensive README
 - [x] Documented S3 service with API reference and migration guide
 
+#### Users Module (Step 2) ✅
+- [x] Created `src/api/users/` directory structure
+  - routes/, controllers/, services/, validators/, policies/
+- [x] Created `users.validators.js` with Joi schemas
+  - updateProfileSchema
+  - changePasswordSchema
+  - studentApplicationSchema
+  - validate() middleware helper
+- [x] Created `users.policies.js` with authorization checks
+  - isSelf - ensure user accesses own resources
+  - canApplyAsStudent - validate application eligibility
+  - isVerified - require verified email
+  - isActive - require active account
+- [x] Created `users.service.js` with business logic
+  - getUserProfile()
+  - updateUserProfile()
+  - changeUserPassword()
+  - getDiscoverableUsers()
+  - updateAvatar()
+  - submitStudentApplication()
+  - getStorageUsage()
+- [x] Created `users.controller.js` (thin layer)
+  - All controllers use asyncHandler
+  - Call service layer, return responses
+- [x] Created `users.routes.js` with route definitions
+  - All routes use new middleware paths (_common/)
+  - Validators applied to routes
+  - Policies enforced
+- [x] Updated `src/routes/index.js` to mount users routes
+- [x] Updated `server.js` to use mountRoutes()
+- [x] Updated imports to use new middleware paths
+- [x] Created comprehensive README.md
+- [x] Tested all endpoints (syntax check passed)
+- [x] Removed old `src/api/user/` directory
+
+**Files Created:**
+- `src/api/users/routes/users.routes.js`
+- `src/api/users/controllers/users.controller.js`
+- `src/api/users/services/users.service.js`
+- `src/api/users/validators/users.validators.js`
+- `src/api/users/policies/users.policies.js`
+- `src/api/users/README.md`
+
+**Files Modified:**
+- `src/routes/index.js` - Added users route mount
+- `server.js` - Updated to use mountRoutes() and new middleware paths
+
+**Files Deleted:**
+- `src/api/user/user.controller.js` ❌
+- `src/api/user/user.routes.js` ❌
+
+#### Auth Module (Step 3) ✅
+- [x] Created `src/api/auth/` directory structure
+  - routes/, controllers/, services/, validators/, policies/
+- [x] Created `auth.validators.js` with Joi schemas
+  - registerSchema (name, email, strong password)
+  - loginSchema (email, password)
+  - forgotPasswordSchema (email)
+  - resetPasswordSchema (password + confirmation)
+  - validate() middleware helper
+- [x] Created `auth.policies.js` (placeholder for future policies)
+- [x] Created `auth.service.js` with business logic
+  - registerUserService() - registration with email verification
+  - loginUserService() - authentication with lockout protection
+  - verifyEmailService() - email verification
+  - forgotPasswordService() - password reset initiation
+  - resetPasswordService() - password reset completion
+  - Helper functions for JWT, token hashing, user formatting
+- [x] Created `auth.controller.js` (thin layer)
+  - registerUser, loginUser, verifyEmail
+  - forgotPassword, resetPassword
+  - All use asyncHandler
+- [x] Created `auth.routes.js` with route definitions
+  - All routes use validators
+  - Rate limiting applied (authLimiter)
+  - 5 endpoints: register, login, verify, forgot, reset
+- [x] Updated `src/routes/index.js` to mount auth routes
+- [x] Updated imports to use new middleware paths
+- [x] Created comprehensive README.md
+- [x] Tested all endpoints (syntax check passed)
+- [x] Removed old auth files
+
+**Files Created:**
+- `src/api/auth/routes/auth.routes.js`
+- `src/api/auth/controllers/auth.controller.js`
+- `src/api/auth/services/auth.service.js`
+- `src/api/auth/validators/auth.validators.js`
+- `src/api/auth/policies/auth.policies.js`
+- `src/api/auth/README.md`
+
+**Files Modified:**
+- `src/routes/index.js` - Added auth route mount (refactored version)
+
+**Files Deleted:**
+- `src/api/auth/auth.controller.js` ❌
+- `src/api/auth/auth.routes.js` ❌
+- `src/api/auth/password.controller.js` ❌
+
 ### 🔄 In Progress
 
 None currently.
@@ -72,15 +170,11 @@ The following domains need to be refactored according to the Phase 0 architectur
    - Refactor existing admin routes to new pattern
    - Keep existing sub-routes structure
 
-8. **Users Module** (`src/api/users/`)
-   - Refactor existing user routes
+8. **Tasks Module** (`src/api/tasks/`) ⭐ (Next recommended)
+   - Refactor existing task management routes
    - Add validators and policies
 
-9. **Auth Module** (`src/api/auth/`)
-   - Refactor existing auth routes
-   - Add validators
-
-10. **AI Module** (`src/api/ai/`)
+9. **AI Module** (`src/api/ai/`)
     - Refactor existing AI routes
     - Add validators and policies
 
@@ -88,11 +182,7 @@ The following domains need to be refactored according to the Phase 0 architectur
     - Refactor existing chat/messaging routes
     - Split REST and Socket.IO logic
 
-12. **Tasks Module** (`src/api/tasks/`)
-    - Refactor existing task management routes
-    - Add validators
-
-13. **College Module** (`src/api/college/`)
+12. **College Module** (`src/api/college/`)
     - Refactor student, teacher, subject routes
     - May split into separate modules
 

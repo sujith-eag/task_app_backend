@@ -14,7 +14,7 @@
 
 import adminRoutes from '../api/admin/admin.routes.js';
 import aiRoutes from '../api/ai/ai.routes.js';
-import authRoutes from '../api/auth/auth.routes.js';
+// import authRoutes from '../api/auth/auth.routes.js'; // OLD - Replaced by refactored auth module
 import conversationRoutes from '../api/chat/conversation.routes.js';
 
 // File Routes (current structure)
@@ -33,13 +33,20 @@ import subjectRoutes from '../api/college/subject.routes.js';
 import teacherRoutes from '../api/college/teacher.routes.js';
 
 import taskRoutes from '../api/tasks/task.routes.js';
-import userRoutes from '../api/user/user.routes.js';
+// import userRoutes from '../api/user/user.routes.js'; // OLD - Replaced by users module
 
 // ========================================
 // NEW PHASE_0 ROUTES (REFACTORED)
 // ========================================
 // Add imports for refactored domain routes here as we create them
-// Example:
+
+// Users module (refactored)
+import usersRoutes from '../api/users/routes/users.routes.js';
+
+// Auth module (refactored)
+import authRoutes from '../api/auth/routes/auth.routes.js';
+
+// Example future refactorings:
 // import filesRoutes from '../api/files/routes/file.routes.js';
 // import sharesRoutes from '../api/shares/routes/shares.routes.js';
 // import trashRoutes from '../api/trash/routes/trash.routes.js';
@@ -64,8 +71,8 @@ export const mountRoutes = (app) => {
     // AI routes
     app.use('/api/ai', aiRoutes);
     
-    // Auth routes
-    app.use('/api/auth', authRoutes);
+    // Auth routes (OLD - commented out, replaced by refactored version)
+    // app.use('/api/auth', authRoutes);
     
     // Chat/Messaging routes
     app.use('/api/chat', conversationRoutes);
@@ -90,13 +97,20 @@ export const mountRoutes = (app) => {
     // Task management routes
     app.use('/api/tasks', taskRoutes);
     
-    // User profile routes
-    app.use('/api/users', userRoutes);
+    // User profile routes (OLD - commented out, replaced by refactored version)
+    // app.use('/api/users', userRoutes);
 
     // ========================================
     // NEW PHASE_0 ROUTES (REFACTORED)
     // ========================================
-    // Mount refactored domain routes here as we create them
+    
+    // Users module (refactored) ✅
+    app.use('/api/users', usersRoutes);
+    
+    // Auth module (refactored) ✅
+    app.use('/api/auth', authRoutes);
+    
+    // Mount additional refactored domain routes here as we create them
     // Example:
     // app.use('/api/files', filesRoutes);
     // app.use('/api/shares', sharesRoutes);
