@@ -94,6 +94,66 @@ export const getMe = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    List sessions for current user
+ * @route   GET /api/auth/sessions
+ * @access  Private
+ */
+export const listSessions = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    res.status(401);
+    throw new Error('Not authenticated');
+  }
+
+  const sessions = (req.user.sessions || []).map((s) => ({
+    deviceId: s.deviceId,
+    ipAddress: s.ipAddress,
+    userAgent: s.userAgent,
+    createdAt: s.createdAt,
+    lastUsedAt: s.lastUsedAt,
+  }));
+
+  res.status(200).json({ sessions });
+});
+
+
+/**
+ * @desc    Revoke a session by deviceId for current user
+ * @route   DELETE /api/auth/sessions/:deviceId
+ * @access  Private
+ */
+export const revokeSession = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    res.status(401);
+    throw new Error('Not authenticated');
+  }
+
+  const { deviceId } = req.params;
+  if (!deviceId) {
+    res.status(400);
+    throw new Error('deviceId is required');
+  }
+
+  const beforeCount = (req.user.sessions || []).length;
+  req.user.sessions = (req.user.sessions || []).filter((s) => s.deviceId !== deviceId);
+  const afterCount = req.user.sessions.length;
+  await req.user.save();
+
+  try {
+    await logAuthEvent({
+      userId: req.user._id,
+      eventType: 'SESSION_DESTROYED',
+      context: { deviceId },
+      actor: req.user.email,
+      req,
+    });
+  } catch (e) {
+    // swallow logging errors
+  }
+
+  res.status(200).json({ message: 'Session revoked', removed: beforeCount - afterCount });
+});
+
+/**
  * @desc    Verify user's email address
  * @route   GET /api/auth/verifyemail/:token
  * @access  Public

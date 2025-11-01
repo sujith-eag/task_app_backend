@@ -70,4 +70,11 @@ router.put(
   managementController.updateStudentEnrollment
 );
 
+/**
+ * @route   GET /api/admin/management/sessions
+ * @desc    List sessions across users (admin-only)
+ * @access  Private/Admin
+ */
+router.get('/sessions', managementController.listAllSessions);
+
 export default router;

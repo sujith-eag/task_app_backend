@@ -2,6 +2,7 @@ import User from '../../../../models/userModel.js';
 import { populateTemplate } from '../../../../utils/emailTemplate.js';
 import { sendEmail } from '../../../../services/email.service.js';
 import { logAuthEvent } from '../../../auth/services/auth.log.service.js';
+import { logAudit } from '../../../_common/services/audit.service.js';
 
 // ============================================================================
 // Application Services
@@ -72,6 +73,20 @@ export const reviewApplication = async (userId, action, actor, req) => {
         context: { before: null, after: user.roles, changedBy: actor?.email || req?.user?.email || 'system' },
         req,
       });
+      // Audit log for role change
+      try {
+        await logAudit({
+          actor: actor || req?.user || null,
+          action: 'ROLE_CHANGED',
+          entityType: 'User',
+          entityId: user._id,
+          before: { roles: null },
+          after: { roles: user.roles },
+          req,
+        });
+      } catch (e) {
+        // swallow
+      }
     }
   } catch (e) {
     // swallow

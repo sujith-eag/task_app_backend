@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import User from '../../../models/userModel.js';
 import { logAuthEvent } from './auth.log.service.js';
+import { logAudit } from '../../_common/services/audit.service.js';
 import { AuthEventTypes } from '../../../models/authEventModel.js';
 import { sendEmail } from '../../../services/email.service.js';
 import { populateTemplate } from '../../../utils/emailTemplate.js';
@@ -366,8 +367,22 @@ export const forgotPasswordService = async (email) => {
 
     await user.save({ validateBeforeSave: false });
 
-    // Log password reset request
+  // Log password reset request (AuthEvent)
   try { await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'PASSWORD_RESET_REQUEST', severity: 'warning', req: null }); } catch(e){}
+    // AuditLog for password reset request
+    try {
+      await logAudit({
+        actor: user,
+        action: 'PASSWORD_RESET_REQUEST',
+        entityType: 'User',
+        entityId: user._id,
+        before: null,
+        after: { passwordResetExpires: user.passwordResetExpires },
+        req: null,
+      });
+    } catch (e) {
+      // swallow
+    }
 
     const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`;
 
@@ -425,6 +440,8 @@ export const resetPasswordService = async (token, newPassword) => {
   // Hash and update password
   const salt = await bcrypt.genSalt(10);
   user.password = await bcrypt.hash(newPassword, salt);
+  // mark password changed
+  user.passwordChangedAt = new Date();
 
   // Clear reset token fields
   user.passwordResetToken = undefined;
@@ -432,8 +449,22 @@ export const resetPasswordService = async (token, newPassword) => {
 
   await user.save();
 
-  // Log password reset success
+  // Log password reset success (AuthEvent)
   try { await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'PASSWORD_RESET_SUCCESS', severity: 'critical', req: null }); } catch(e){}
+  // AuditLog for password reset completion
+  try {
+    await logAudit({
+      actor: user,
+      action: 'PASSWORD_RESET_SUCCESS',
+      entityType: 'User',
+      entityId: user._id,
+      before: null,
+      after: { passwordChangedAt: user.passwordChangedAt || new Date() },
+      req: null,
+    });
+  } catch (e) {
+    // swallow
+  }
 
   return { message: 'Password reset successful.' };
 };

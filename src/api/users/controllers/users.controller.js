@@ -19,7 +19,8 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
 export const updateProfile = asyncHandler(async (req, res) => {
     const updatedProfile = await usersService.updateUserProfile(
         req.user._id,
-        req.body
+        req.body,
+        req
     );
     res.status(200).json(updatedProfile);
 });
@@ -35,7 +36,8 @@ export const changePassword = asyncHandler(async (req, res) => {
     await usersService.changeUserPassword(
         req.user._id,
         currentPassword,
-        newPassword
+        newPassword,
+        req
     );
     
     res.status(200).json({ message: 'Password updated successfully' });
@@ -62,7 +64,7 @@ export const updateAvatar = asyncHandler(async (req, res) => {
         throw new Error('No avatar image file provided');
     }
     
-    const avatarUrl = await usersService.updateAvatar(req.user._id, req.file);
+    const avatarUrl = await usersService.updateAvatar(req.user._id, req.file, req);
     res.status(200).json({ avatar: avatarUrl });
 });
 
@@ -74,7 +76,8 @@ export const updateAvatar = asyncHandler(async (req, res) => {
 export const applyAsStudent = asyncHandler(async (req, res) => {
     const updatedUser = await usersService.submitStudentApplication(
         req.user._id,
-        req.body
+        req.body,
+        req
     );
     res.status(200).json(updatedUser);
 });

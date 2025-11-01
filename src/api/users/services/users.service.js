@@ -5,6 +5,7 @@ import { uploadAvatar, deleteFile } from '../../../services/s3/s3.service.js';
 import { populateTemplate } from '../../../utils/emailTemplate.js';
 import { sendEmail } from '../../../services/email.service.js';
 import { QUOTAS } from '../../_common/middleware/quota.middleware.js';
+import { logAudit } from '../../_common/services/audit.service.js';
 
 /**
  * Get current user's full profile
@@ -40,29 +41,43 @@ export const getUserProfile = async (userId) => {
  * @param {Object} updates - Profile updates (name, bio, preferences)
  * @returns {Promise<Object>} Updated user profile
  */
-export const updateUserProfile = async (userId, updates) => {
+export const updateUserProfile = async (userId, updates, req = null) => {
     const user = await User.findById(userId);
     
     if (!user) {
         throw new Error('User not found');
     }
-    
+
+    // capture before snapshot
+    const before = user.toObject();
+
     // Update fields if provided
     if (updates.name) {
         user.name = updates.name;
     }
-    
+
     if (updates.bio !== undefined) {
         user.bio = updates.bio;
     }
-    
+
     // Merge preferences to avoid overwriting nested fields
     if (updates.preferences) {
         user.preferences = { ...user.preferences, ...updates.preferences };
     }
-    
+
     const updatedUser = await user.save();
-    
+
+    // write audit log (best-effort)
+    await logAudit({
+        actor: req?.user || user,
+        action: 'PROFILE_UPDATED',
+        entityType: 'User',
+        entityId: updatedUser._id,
+        before,
+        after: updatedUser,
+        req,
+    });
+
     return {
         id: updatedUser._id,
         name: updatedUser.name,
@@ -82,7 +97,7 @@ export const updateUserProfile = async (userId, updates) => {
  * @param {string} newPassword - New password
  * @returns {Promise<void>}
  */
-export const changeUserPassword = async (userId, currentPassword, newPassword) => {
+export const changeUserPassword = async (userId, currentPassword, newPassword, req = null) => {
     // Find user with password field
     const user = await User.findById(userId).select('+password');
     
@@ -100,16 +115,30 @@ export const changeUserPassword = async (userId, currentPassword, newPassword) =
     
     // Hash new password
     const salt = await bcrypt.genSalt(10);
+    // capture before snapshot (sanitized by audit service)
+    const before = user.toObject();
+
     user.password = await bcrypt.hash(newPassword, salt);
     
     // Update password change timestamp
-    user.passwordResetOn = new Date();
+    user.passwordChangedAt = new Date();
     
     // Reset login attempt counters for security
     user.failedLoginAttempts = 0;
     user.lockoutExpires = null;
     
     await user.save();
+
+    // audit password change (do not include raw password values)
+    await logAudit({
+        actor: req?.user || user,
+        action: 'PASSWORD_CHANGED',
+        entityType: 'User',
+        entityId: user._id,
+        before,
+        after: user,
+        req,
+    });
 };
 
 /**
@@ -137,13 +166,14 @@ export const getDiscoverableUsers = async (currentUserId) => {
  * @param {Object} file - Multer file object
  * @returns {Promise<string>} New avatar URL
  */
-export const updateAvatar = async (userId, file) => {
+export const updateAvatar = async (userId, file, req = null) => {
     const user = await User.findById(userId);
     
     if (!user) {
         throw new Error('User not found');
     }
-    
+
+    const before = user.toObject();
     // Delete old avatar from S3 if exists
     if (user.avatar) {
         try {
@@ -166,6 +196,16 @@ export const updateAvatar = async (userId, file) => {
     // Update user's avatar field
     user.avatar = newAvatarUrl;
     await user.save();
+
+    await logAudit({
+        actor: req?.user || user,
+        action: 'AVATAR_UPDATED',
+        entityType: 'User',
+        entityId: user._id,
+        before,
+        after: user,
+        req,
+    });
     
     return newAvatarUrl;
 };
@@ -177,7 +217,7 @@ export const updateAvatar = async (userId, file) => {
  * @param {Object} applicationData - Application data (usn, section, batch, semester)
  * @returns {Promise<Object>} Updated user with application
  */
-export const submitStudentApplication = async (userId, applicationData) => {
+export const submitStudentApplication = async (userId, applicationData, req = null) => {
     const { usn, section, batch, semester } = applicationData;
     
     // Check if USN is already in use
@@ -196,7 +236,9 @@ export const submitStudentApplication = async (userId, applicationData) => {
     if (!user) {
         throw new Error('User not found');
     }
-    
+
+    const before = user.toObject();
+
     user.studentDetails = {
         ...user.studentDetails,
         usn,
@@ -205,8 +247,18 @@ export const submitStudentApplication = async (userId, applicationData) => {
         semester,
         applicationStatus: 'pending',
     };
-    
+
     await user.save();
+
+    await logAudit({
+        actor: req?.user || user,
+        action: 'STUDENT_APPLICATION_SUBMITTED',
+        entityType: 'User',
+        entityId: user._id,
+        before,
+        after: user,
+        req,
+    });
     
     // Send confirmation email in background (don't await)
     sendApplicationConfirmationEmail(user).catch(error => {

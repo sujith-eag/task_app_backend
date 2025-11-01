@@ -93,3 +93,24 @@ export const updateStudentDetails = asyncHandler(async (req, res) => {
     data: result,
   });
 });
+
+
+/**
+ * @desc    List sessions across users (admin)
+ * @route   GET /api/admin/management/sessions
+ * @access  Private/Admin
+ */
+export const listAllSessions = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, deviceId, ip, email, role } = req.query;
+
+  const result = await managementService.listAllSessions({
+    page: parseInt(page, 10) || 1,
+    limit: parseInt(limit, 10) || 20,
+    deviceId,
+    ip,
+    email,
+    role,
+  });
+
+  res.status(200).json({ success: true, meta: { total: result.total, page: result.page, pageSize: result.pageSize }, data: result.data });
+});

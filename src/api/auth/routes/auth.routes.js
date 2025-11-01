@@ -45,7 +45,21 @@ router.post(
  * @desc    Logout and clear httpOnly cookie
  * @access  Public (clears cookie)
  */
-router.post('/logout', authController.logoutUser);
+router.post('/logout', protect, authController.logoutUser);
+
+/**
+ * @route   GET /api/auth/sessions
+ * @desc    List sessions for current user
+ * @access  Private
+ */
+router.get('/sessions', protect, authController.listSessions);
+
+/**
+ * @route   DELETE /api/auth/sessions/:deviceId
+ * @desc    Revoke a session by deviceId
+ * @access  Private
+ */
+router.delete('/sessions/:deviceId', protect, authController.revokeSession);
 
 /**
  * @route   GET /api/auth/me

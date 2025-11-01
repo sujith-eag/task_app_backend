@@ -10,6 +10,7 @@ import http from 'http';
 
 import { Server } from 'socket.io';
 import { socketAuthMiddleware } from './src/api/_common/middleware/auth.middleware.js';
+import sessionRegistry from './src/api/_common/socket/sessionRegistry.js';
 import { handleConnection } from './src/api/chat/socket/chat.socket.js';
 import { handleAttendanceConnection } from './src/api/college/attendence.socket.js';
 
@@ -58,11 +59,24 @@ io.use(socketAuthMiddleware);
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.user.name} (Socket ID: ${socket.id})`);
 
+  // Register socket in in-memory session registry if client provided deviceId
+  try {
+    const deviceId = socket.handshake?.auth?.deviceId || socket.handshake?.headers?.['x-device-id'] || 'unknown';
+    sessionRegistry.registerSocket(socket.user._id?.toString(), deviceId, socket.id);
+  } catch (e) {
+    // ignore registry errors
+  }
+
+  // Handle disconnect to cleanup registry
+  socket.on('disconnect', () => {
+    try { sessionRegistry.unregisterSocket(socket.id); } catch(e){}
+  });
+
   // Delegate to the chat handler
   handleConnection(socket, io);
 
   // Delegate to the attendance handler
-  handleAttendanceConnection(socket); 
+  handleAttendanceConnection(socket);
 });
 
 // --- Core Middleware ---

@@ -3,6 +3,8 @@ import Subject from '../../../../models/subjectModel.js';
 import { populateTemplate } from '../../../../utils/emailTemplate.js';
 import { sendEmail } from '../../../../services/email.service.js';
 import { logAuthEvent } from '../../../auth/services/auth.log.service.js';
+import { logAudit } from '../../../_common/services/audit.service.js';
+import sessionRegistry from '../../../_common/socket/sessionRegistry.js';
 
 // ============================================================================
 // User Management Services
@@ -144,6 +146,21 @@ export const promoteToFaculty = async (userId, promotionData, actor, req) => {
   } catch (e) {
     // swallow logging errors
   }
+  
+    // Also write an AuditLog entry for the role change (structured, with before/after)
+    try {
+      await logAudit({
+        actor: actor || req?.user || null,
+        action: 'ROLE_CHANGED',
+        entityType: 'User',
+        entityId: user._id,
+        before: { roles: beforeRoles },
+        after: { roles: user.roles },
+        req,
+      });
+    } catch (e) {
+      // swallow audit errors
+    }
 
   return {
     message: `${user.name} has been promoted to ${role}.`,
@@ -184,6 +201,70 @@ export const updateStudentDetails = async (studentId, updateData) => {
   return {
     message: 'Student details updated successfully.',
     studentDetails: student.studentDetails,
+  };
+};
+
+/**
+ * List all sessions across users (admin)
+ * Supports pagination and simple filters (deviceId, ip, email, role)
+ */
+export const listAllSessions = async ({ page = 1, limit = 20, deviceId, ip, email, role }) => {
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  const match = {};
+  if (deviceId) match['sessions.deviceId'] = deviceId;
+  if (ip) match['sessions.ipAddress'] = { $regex: ip, $options: 'i' };
+  if (email) match['email'] = { $regex: email, $options: 'i' };
+  if (role) match['roles'] = role;
+
+  const pipeline = [
+    { $unwind: '$sessions' },
+    { $match: match },
+    {
+      $project: {
+        _id: 0,
+        userId: '$_id',
+        name: '$name',
+        email: '$email',
+        roles: '$roles',
+        session: '$sessions',
+      },
+    },
+    { $sort: { 'session.lastUsedAt': -1 } },
+    {
+      $facet: {
+        metadata: [{ $count: 'total' }],
+        data: [{ $skip: skip }, { $limit: limit }],
+      },
+    },
+  ];
+
+  const result = await User.aggregate(pipeline).allowDiskUse(true);
+  const metadata = (result[0].metadata[0] && result[0].metadata[0].total) || 0;
+  const data = result[0].data || [];
+
+  // Enrich with active flag from in-memory session registry
+  const enriched = data.map((row) => {
+    const isActive = sessionRegistry.isDeviceActive(row.userId.toString(), row.session.deviceId);
+    return {
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      roles: row.roles,
+      deviceId: row.session.deviceId,
+      ipAddress: row.session.ipAddress,
+      userAgent: row.session.userAgent,
+      createdAt: row.session.createdAt,
+      lastUsedAt: row.session.lastUsedAt,
+      isActive,
+    };
+  });
+
+  return {
+    total: metadata,
+    page: Math.max(1, page),
+    pageSize: limit,
+    data: enriched,
   };
 };
 
