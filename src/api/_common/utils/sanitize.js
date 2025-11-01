@@ -1,3 +1,21 @@
+export function sanitizeForLog(doc) {
+  if (!doc) return null;
+  // If it's a mongoose document, convert to plain object
+  const obj = (typeof doc.toObject === 'function') ? doc.toObject() : { ...doc };
+
+  const sensitiveFields = [
+    'password', 'passwordResetToken', 'passwordResetExpires',
+    'emailVerificationToken', 'emailVerificationExpires', 'sessions', '__v'
+  ];
+
+  sensitiveFields.forEach((f) => {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, f)) {
+      delete obj[f];
+    }
+  });
+
+  return obj;
+}
 /**
  * Sanitization utilities for user input
  */

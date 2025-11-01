@@ -85,9 +85,14 @@ export const applyAsStudent = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const getStorageUsage = asyncHandler(async (req, res) => {
+    // Compute effective role (most permissive) from roles array to pass to service
+    const roles = Array.isArray(req.user?.roles) ? req.user.roles : (req.user?.role ? [req.user.role] : ['user']);
+    const precedence = ['admin', 'hod', 'teacher', 'student', 'user'];
+    const effectiveRole = precedence.find(r => roles.includes(r)) || 'user';
+
     const storageInfo = await usersService.getStorageUsage(
         req.user._id,
-        req.user.role
+        effectiveRole
     );
     res.status(200).json(storageInfo);
 });

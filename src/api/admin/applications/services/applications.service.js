@@ -1,6 +1,7 @@
 import User from '../../../../models/userModel.js';
 import { populateTemplate } from '../../../../utils/emailTemplate.js';
 import { sendEmail } from '../../../../services/email.service.js';
+import { logAuthEvent } from '../../../auth/services/auth.log.service.js';
 
 // ============================================================================
 // Application Services
@@ -27,7 +28,7 @@ export const getPendingApplications = async () => {
  * @returns {Promise<Object>} Updated user with review status
  * @throws {Error} If user not found or application not pending
  */
-export const reviewApplication = async (userId, action) => {
+export const reviewApplication = async (userId, action, actor, req) => {
   // Find the user
   const user = await User.findById(userId);
 
@@ -42,7 +43,8 @@ export const reviewApplication = async (userId, action) => {
 
   // Update user based on action
   if (action === 'approve') {
-    user.role = 'student';
+    // Migrate to roles array
+    user.roles = ['student'];
     user.studentDetails.applicationStatus = 'approved';
     user.studentDetails.isStudentVerified = true;
 
@@ -59,10 +61,26 @@ export const reviewApplication = async (userId, action) => {
 
   await user.save();
 
+  // Log role change if approved
+  try {
+    if (action === 'approve') {
+      await logAuthEvent({
+        userId: user._id,
+        actor: actor?.email || req?.user?.email || 'system',
+        eventType: 'ROLE_CHANGED',
+        severity: 'critical',
+        context: { before: null, after: user.roles, changedBy: actor?.email || req?.user?.email || 'system' },
+        req,
+      });
+    }
+  } catch (e) {
+    // swallow
+  }
+
   return {
     message: `Application ${action}d successfully`,
     userId: user._id,
-    role: user.role,
+    roles: user.roles,
     applicationStatus: user.studentDetails.applicationStatus,
   };
 };

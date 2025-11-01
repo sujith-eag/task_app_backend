@@ -140,7 +140,7 @@ export const getUserFilesService = async (userId, user, parentId) => {
           { user: userId }, // User owns it
           { 'sharedWith.user': userId }, // Shared directly
           // Class share (for students)
-          ...(user.role === 'student' && user.studentDetails
+          ...(Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails
             ? [
                 {
                   'sharedWithClass.batch': user.studentDetails.batch,

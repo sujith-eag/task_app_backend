@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import User from '../../../models/userModel.js';
+import { logAuthEvent } from './auth.log.service.js';
+import { AuthEventTypes } from '../../../models/authEventModel.js';
 import { sendEmail } from '../../../services/email.service.js';
 import { populateTemplate } from '../../../utils/emailTemplate.js';
 
@@ -45,7 +47,23 @@ const generateRandomToken = () => {
 };
 
 /**
- * Format user response with token
+ * Helper to set JWT as httpOnly cookie on the response
+ * @param {Object} res - Express response
+ * @param {string} token - JWT
+ */
+const sendTokenCookie = (res, token) => {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  };
+  res.cookie('jwt', token, cookieOptions);
+};
+
+
+/**
+ * Format user response object (do not include token in JSON when using cookies)
  * @param {Object} user - User document
  * @returns {Object} User response object
  */
@@ -54,13 +72,12 @@ const formatUserResponse = (user) => {
     _id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    roles: user.roles,
     avatar: user.avatar,
     bio: user.bio,
     preferences: user.preferences,
     studentDetails: user.studentDetails,
     teacherDetails: user.teacherDetails,
-    token: generateJWTtoken(user._id),
   };
 };
 
@@ -136,6 +153,11 @@ export const registerUserService = async ({ name, email, password }) => {
       html: htmlMessage,
     });
 
+    // Log email verification request
+    try {
+      await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'EMAIL_VERIFY_REQUEST', severity: 'info', req: null });
+    } catch (e) {}
+
     return { message: successMessage };
   } catch (error) {
     console.error('Error during registration finalization:', error);
@@ -160,12 +182,14 @@ export const registerUserService = async ({ name, email, password }) => {
  * @param {Object} credentials - User login credentials
  * @returns {Promise<Object>} User data with token
  */
-export const loginUserService = async ({ email, password }) => {
+export const loginUserService = async ({ email, password }, res) => {
   const user = await User.findOne({ email }).select(
     '+password +failedLoginAttempts +lockoutExpires'
   );
 
-  if (!user) {
+    if (!user) {
+  // Log failed attempt for non-existent user
+  try { await logAuthEvent({ actor: email, eventType: 'LOGIN_FAILURE', severity: 'warning', context: { reason: 'Invalid credentials - user not found' }, req: null }); } catch(e){}
     throw new Error('Invalid credentials');
   }
 
@@ -174,6 +198,8 @@ export const loginUserService = async ({ email, password }) => {
       'Please verify your email address before you can log in.'
     );
     error.statusCode = 403;
+    // Log verification-required event
+  try { await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'LOGIN_FAILURE', severity: 'warning', context: { reason: 'Email not verified' }, req: null }); } catch(e){}
     throw error;
   }
 
@@ -193,8 +219,57 @@ export const loginUserService = async ({ email, password }) => {
     user.failedLoginAttempts = 0;
     user.lockoutExpires = undefined;
     user.lastLoginAt = new Date();
+    // Attempt to capture IP from the request object if available
+    try {
+      const ip = res?.req?.ip || undefined;
+      if (ip) user.lastIp = ip;
+    } catch (err) {
+      // ignore
+    }
+
+    // Create a session entry for this login (deviceId from header or generated)
+    try {
+      const deviceIdHeader = res?.req?.headers?.['x-device-id'];
+      const deviceId = deviceIdHeader || crypto.randomBytes(12).toString('hex');
+      const userAgent = res?.req?.get ? res.req.get('User-Agent') : res?.req?.headers?.['user-agent'];
+      const ipAddress = res?.req?.ip || res?.req?.headers?.['x-forwarded-for'] || null;
+
+      // Push session (limit to last 10 sessions)
+      user.sessions = user.sessions || [];
+      user.sessions.push({ deviceId, ipAddress, userAgent, lastUsedAt: new Date(), createdAt: new Date() });
+      if (user.sessions.length > 10) {
+        user.sessions = user.sessions.slice(user.sessions.length - 10);
+      }
+
+      // Log session creation
+      try {
+        await logAuthEvent({
+          userId: user._id,
+          actor: user.email,
+          eventType: 'SESSION_CREATED',
+          severity: 'info',
+          context: { deviceId },
+          req: res?.req,
+        });
+      } catch (e) {
+        // ignore
+      }
+    } catch (err) {
+      // ignore session creation errors
+    }
+
     await user.save();
 
+    // Generate token and send as httpOnly cookie
+    const token = generateJWTtoken(user._id);
+    if (res) sendTokenCookie(res, token);
+
+    // Log success
+    try {
+      await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'LOGIN_SUCCESS', severity: 'info', req: res?.req });
+    } catch (e) { /* ignore logging errors */ }
+
+    // Return user object without token (cookie holds the JWT)
     return formatUserResponse(user);
   } else {
     // Failed login - increment attempts
@@ -207,6 +282,8 @@ export const loginUserService = async ({ email, password }) => {
     }
 
     await user.save();
+    // Log failure
+  try { await logAuthEvent({ userId: user._id, actor: email, eventType: 'LOGIN_FAILURE', severity: 'warning', context: { reason: 'Invalid password' }, req: res?.req }); } catch(e){}
     throw new Error('Invalid credentials');
   }
 };
@@ -241,6 +318,11 @@ export const verifyEmailService = async (token) => {
   user.emailVerificationToken = undefined;
   user.emailVerificationExpires = undefined;
   await user.save();
+
+  // Log email verified
+  try {
+    await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'EMAIL_VERIFIED', severity: 'info', req: null });
+  } catch (e) {}
 
   return { message: 'Email verified successfully. You can now log in.' };
 };
@@ -283,6 +365,9 @@ export const forgotPasswordService = async (email) => {
       Date.now() + PASSWORD_RESET_EXPIRY_MINUTES * 60 * 1000;
 
     await user.save({ validateBeforeSave: false });
+
+    // Log password reset request
+  try { await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'PASSWORD_RESET_REQUEST', severity: 'warning', req: null }); } catch(e){}
 
     const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`;
 
@@ -346,6 +431,9 @@ export const resetPasswordService = async (token, newPassword) => {
   user.passwordResetExpires = undefined;
 
   await user.save();
+
+  // Log password reset success
+  try { await logAuthEvent({ userId: user._id, actor: user.email, eventType: 'PASSWORD_RESET_SUCCESS', severity: 'critical', req: null }); } catch(e){}
 
   return { message: 'Password reset successful.' };
 };

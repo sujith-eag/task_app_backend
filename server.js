@@ -5,6 +5,7 @@ import 'dotenv/config'; // auto-runs dotenv.config()
 import helmet from 'helmet'; // Security headers
 import morgan from 'morgan'; // Request logger
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import http from 'http';
 
 import { Server } from 'socket.io';
@@ -44,6 +45,7 @@ const io = new Server(server, {
   cors: {
       origin: allowedOrigins,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      credentials: true,
     },
 });
 
@@ -66,7 +68,11 @@ io.on('connection', (socket) => {
 // --- Core Middleware ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cors({ origin: allowedOrigins }));
+// Enable cookie parsing for httpOnly cookie authentication
+app.use(cookieParser());
+
+// Allow credentials (cookies) from allowed origins
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 
 // --- Security & Logging Middleware ---
 // Setting security HTTP headers

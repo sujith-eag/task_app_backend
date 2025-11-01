@@ -9,8 +9,8 @@
 
 const hasRole = (roles) => {
   return (req, res, next) => {
-    // 'protect' middleware has attached req.user
-    if (!req.user || !roles.includes(req.user.role)) {
+    // 'protect' middleware has attached req.user and req.user.roles
+    if (!req.user || !Array.isArray(req.user.roles) || !roles.some(r => req.user.roles.includes(r))) {
       res.status(403); // 403 Forbidden
       throw new Error('Not authorized. You do not have the required permissions.');
     }

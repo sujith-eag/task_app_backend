@@ -32,7 +32,7 @@ export const updateTeacherAssignments = async (teacherId, assignmentData) => {
   const teacher = await User.findById(teacherId);
 
   // Allow assigning subjects to both teachers and HODs
-  if (!teacher || !['teacher', 'hod'].includes(teacher.role)) {
+  if (!teacher || !(Array.isArray(teacher.roles) && (teacher.roles.includes('teacher') || teacher.roles.includes('hod')))) {
     throw new Error('Teacher not found.');
   }
 
@@ -81,7 +81,7 @@ export const updateTeacherAssignments = async (teacherId, assignmentData) => {
 export const deleteTeacherAssignment = async (teacherId, assignmentId) => {
   const teacher = await User.findById(teacherId);
 
-  if (!teacher || !['teacher', 'hod'].includes(teacher.role)) {
+  if (!teacher || !(Array.isArray(teacher.roles) && (teacher.roles.includes('teacher') || teacher.roles.includes('hod')))) {
     throw new Error('Faculty member not found.');
   }
 

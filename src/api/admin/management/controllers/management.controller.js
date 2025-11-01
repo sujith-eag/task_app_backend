@@ -66,7 +66,7 @@ export const promoteToFaculty = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const promotionData = req.body;
 
-  const result = await managementService.promoteToFaculty(userId, promotionData);
+  const result = await managementService.promoteToFaculty(userId, promotionData, req.user, req);
 
   res.status(200).json({
     success: true,

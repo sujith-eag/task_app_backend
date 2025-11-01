@@ -2,6 +2,7 @@ import User from '../../../../models/userModel.js';
 import Subject from '../../../../models/subjectModel.js';
 import { populateTemplate } from '../../../../utils/emailTemplate.js';
 import { sendEmail } from '../../../../services/email.service.js';
+import { logAuthEvent } from '../../../auth/services/auth.log.service.js';
 
 // ============================================================================
 // User Management Services
@@ -14,7 +15,7 @@ import { sendEmail } from '../../../../services/email.service.js';
  */
 export const getUsersByRole = async (role) => {
   const users = await User.find({
-    role: role,
+    roles: role,
     isVerified: true,
   }).select('name email studentDetails');
 
@@ -26,7 +27,7 @@ export const getUsersByRole = async (role) => {
  * @returns {Promise<Array>} List of teachers and HODs with populated assignments
  */
 export const getAllTeachers = async () => {
-  const teachers = await User.find({ role: { $in: ['teacher', 'hod'] } })
+  const teachers = await User.find({ roles: { $in: ['teacher', 'hod'] } })
     .select('name email teacherDetails')
     .populate({
       path: 'teacherDetails.assignments.subject',
@@ -46,7 +47,7 @@ export const getAllTeachers = async () => {
 export const updateStudentEnrollment = async (studentId, subjectIds) => {
   const student = await User.findById(studentId);
 
-  if (!student || student.role !== 'student') {
+  if (!student || !(Array.isArray(student.roles) && student.roles.includes('student'))) {
     throw new Error('Student not found.');
   }
 
@@ -93,7 +94,7 @@ export const updateStudentEnrollment = async (studentId, subjectIds) => {
  * @returns {Promise<Object>} Updated user information
  * @throws {Error} If validation fails
  */
-export const promoteToFaculty = async (userId, promotionData) => {
+export const promoteToFaculty = async (userId, promotionData, actor, req) => {
   const { role, staffId, department } = promotionData;
 
   const user = await User.findById(userId);
@@ -108,7 +109,10 @@ export const promoteToFaculty = async (userId, promotionData) => {
     throw new Error('This Staff ID is already assigned to another user.');
   }
 
-  user.role = role;
+  const beforeRoles = Array.isArray(user.roles) ? user.roles.slice() : [];
+
+  // Normalize incoming role into roles array
+  user.roles = Array.isArray(role) ? role : [role];
   user.teacherDetails = {
     staffId,
     department,
@@ -127,11 +131,25 @@ export const promoteToFaculty = async (userId, promotionData) => {
     console.error('Failed to send promotion email:', error);
   });
 
+  // Log role change
+  try {
+    await logAuthEvent({
+      userId: user._id,
+      actor: actor?.email || (req?.user?.email) || 'system',
+      eventType: 'ROLE_CHANGED',
+      severity: 'critical',
+      context: { before: beforeRoles, after: user.roles, changedBy: actor?.email || req?.user?.email || 'system' },
+      req,
+    });
+  } catch (e) {
+    // swallow logging errors
+  }
+
   return {
     message: `${user.name} has been promoted to ${role}.`,
     user: {
       id: user._id,
-      role: user.role,
+      roles: user.roles,
       teacherDetails: user.teacherDetails,
     },
   };
@@ -147,7 +165,7 @@ export const promoteToFaculty = async (userId, promotionData) => {
 export const updateStudentDetails = async (studentId, updateData) => {
   const student = await User.findById(studentId);
 
-  if (!student || student.role !== 'student') {
+  if (!student || !(Array.isArray(student.roles) && student.roles.includes('student'))) {
     throw new Error('Student not found.');
   }
 

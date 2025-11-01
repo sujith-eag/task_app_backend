@@ -1,5 +1,6 @@
 import express from 'express';
 import * as authController from '../controllers/auth.controller.js';
+import { protect } from '../../_common/middleware/auth.middleware.js';
 import {
   registerSchema,
   loginSchema,
@@ -38,6 +39,20 @@ router.post(
   validate(loginSchema),
   authController.loginUser
 );
+
+/**
+ * @route   POST /api/auth/logout
+ * @desc    Logout and clear httpOnly cookie
+ * @access  Public (clears cookie)
+ */
+router.post('/logout', authController.logoutUser);
+
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current authenticated user
+ * @access  Private
+ */
+router.get('/me', protect, authController.getMe);
 
 /**
  * @route   GET /api/auth/verifyemail/:token

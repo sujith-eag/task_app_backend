@@ -29,7 +29,7 @@ export const reviewApplication = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { action } = req.body;
 
-  const result = await applicationsService.reviewApplication(userId, action);
+  const result = await applicationsService.reviewApplication(userId, action, req.user, req);
 
   res.status(200).json({
     success: true,

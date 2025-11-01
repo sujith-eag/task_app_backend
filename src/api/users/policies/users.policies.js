@@ -36,7 +36,8 @@ export const canApplyAsStudent = (req, res, next) => {
     const user = req.user;
     
     // Check if user already has a role other than 'user'
-    if (user.role !== 'user') {
+    // Require that the user's roles array is exactly ['user'] to be eligible
+    if (!Array.isArray(user.roles) || !(user.roles.length === 1 && user.roles[0] === 'user')) {
         res.status(403);
         return next(new Error('Only basic users can apply to become students'));
     }

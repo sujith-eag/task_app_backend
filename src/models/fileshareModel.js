@@ -269,7 +269,7 @@ fileShareSchema.statics.userHasAccess = async function (fileId, userId, userDeta
   if (directShare) return true;
 
   // Check class share (if user is a student)
-  if (userDetails?.role === 'student' && userDetails?.studentDetails) {
+  if (Array.isArray(userDetails?.roles) && userDetails.roles.includes('student') && userDetails?.studentDetails) {
     const classShare = await this.findOne({
       file: fileId,
       shareType: 'class',
@@ -304,7 +304,7 @@ fileShareSchema.statics.getFilesSharedWithUser = function (userId, userDetails =
   };
 
   // Add class share condition if student
-  if (userDetails?.role === 'student' && userDetails?.studentDetails) {
+  if (Array.isArray(userDetails?.roles) && userDetails.roles.includes('student') && userDetails?.studentDetails) {
     query.$or.push({
       shareType: 'class',
       'classShare.batch': userDetails.studentDetails.batch,

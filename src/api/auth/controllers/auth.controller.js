@@ -1,5 +1,6 @@
 import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as authService from '../services/auth.service.js';
+import { logAuthEvent } from '../services/auth.log.service.js';
 
 // ============================================================================
 // Authentication Controllers
@@ -21,8 +22,75 @@ export const registerUser = asyncHandler(async (req, res) => {
  * @access  Public
  */
 export const loginUser = asyncHandler(async (req, res) => {
-  const result = await authService.loginUserService(req.body);
-  res.status(200).json(result);
+  // Pass 'res' so the service can set the httpOnly cookie
+  const user = await authService.loginUserService(req.body, res);
+  res.status(200).json({ message: 'Login successful', user });
+});
+
+
+/**
+ * @desc    Logout user (clear cookie and remove session)
+ * @route   POST /api/auth/logout
+ * @access  Private
+ */
+export const logoutUser = asyncHandler(async (req, res) => {
+  // If user is present (protected route), attempt to clear the session record
+  try {
+    if (req.user) {
+      const deviceId = req.headers['x-device-id'] || req.body?.deviceId;
+      if (deviceId) {
+        req.user.sessions = (req.user.sessions || []).filter(s => s.deviceId !== deviceId);
+        await req.user.save();
+        try {
+          await logAuthEvent({
+            userId: req.user._id,
+            eventType: 'SESSION_DESTROYED',
+            context: { deviceId },
+            actor: req.user.email,
+            ip: req.ip || null,
+          }, req);
+        } catch (e) {
+          // swallow logging errors
+        }
+      }
+      try {
+        await logAuthEvent({
+          userId: req.user._id,
+          eventType: 'LOGOUT',
+          actor: req.user.email,
+          ip: req.ip || null,
+        }, req);
+      } catch (e) {
+        // swallow
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  // Clear cookie by setting an expired cookie
+  res.cookie('jwt', 'loggedout', {
+    httpOnly: true,
+    expires: new Date(0),
+  });
+  res.json({ success: true, message: 'Logged out' });
+});
+
+/**
+ * @desc    Return current authenticated user
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+export const getMe = asyncHandler(async (req, res) => {
+  // req.user is set by protect middleware
+  if (!req.user) {
+    res.status(401);
+    throw new Error('Not authenticated');
+  }
+
+  // Return fresh user data without sensitive fields
+  const user = req.user;
+  res.status(200).json({ user });
 });
 
 /**

@@ -41,7 +41,10 @@ export const QUOTAS = {
  * Must be used AFTER the 'protect' middleware.
  */
 export const checkStorageQuota = asyncHandler(async (req, res, next) => {
-    const userRole = req.user.role;
+    // Determine effective role from roles array (most permissive)
+    const roles = Array.isArray(req.user?.roles) ? req.user.roles : (req.user?.role ? [req.user.role] : ['user']);
+    const precedence = ['admin', 'hod', 'teacher', 'student', 'user'];
+    const userRole = precedence.find(r => roles.includes(r)) || 'user';
     const quota = QUOTAS[userRole] || QUOTAS.user; // Default to 'user' quota
 
     // If quota is unlimited, skip all checks
