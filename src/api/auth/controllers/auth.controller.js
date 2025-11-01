@@ -1,4 +1,4 @@
-import { asyncHandler } from '../../_common/http/asyncHandler.js';
+import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as authService from '../services/auth.service.js';
 
 // ============================================================================

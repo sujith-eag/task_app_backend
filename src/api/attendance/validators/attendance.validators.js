@@ -1,171 +1,66 @@
-import { body, param, query } from 'express-validator';
+import Joi from 'joi';
+import validate from '../../../middleware/validation.middleware.js';
 
-/**
- * Validation rules for Attendance Domain (Phase 0)
- */
+const mongoId = Joi.string().pattern(/^[0-9a-fA-F]{24}$/).message('Invalid ID format');
 
 // Session creation validation
 export const createSessionValidation = [
-  body('subject')
-    .notEmpty().withMessage('Subject is required')
-    .isMongoId().withMessage('Invalid subject ID'),
-  body('batch')
-    .notEmpty().withMessage('Batch is required')
-    .isInt({ min: 2000, max: 2100 }).withMessage('Invalid batch year'),
-  body('semester')
-    .notEmpty().withMessage('Semester is required')
-    .isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  body('section')
-    .notEmpty().withMessage('Section is required')
-    .isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
-  body('topic')
-    .notEmpty().withMessage('Topic is required')
-    .isString().withMessage('Topic must be a string')
-    .trim()
-    .isLength({ min: 3, max: 200 }).withMessage('Topic must be between 3 and 200 characters'),
-  body('sessionType')
-    .notEmpty().withMessage('Session type is required')
-    .isIn(['lecture', 'lab', 'tutorial', 'seminar']).withMessage('Invalid session type')
+  validate({ body: Joi.object({
+    subject: mongoId.required(),
+    batch: Joi.number().integer().min(2000).max(2100).required(),
+    semester: Joi.number().integer().min(1).max(8).required(),
+    section: Joi.string().valid('A', 'B', 'C').required(),
+    topic: Joi.string().trim().min(3).max(200).required(),
+    sessionType: Joi.string().valid('lecture', 'lab', 'tutorial', 'seminar').required()
+  }) })
 ];
 
 // Mark attendance validation
 export const markAttendanceValidation = [
-  body('attendanceCode')
-    .notEmpty().withMessage('Attendance code is required')
-    .isString().withMessage('Attendance code must be a string')
-    .matches(/^\d{8}$/).withMessage('Attendance code must be 8 digits')
+  validate({ body: Joi.object({ attendanceCode: Joi.string().pattern(/^\d{8}$/).required() }) })
 ];
 
 // Update attendance record validation
 export const updateAttendanceValidation = [
-  param('recordId')
-    .notEmpty().withMessage('Record ID is required')
-    .isMongoId().withMessage('Invalid record ID'),
-  body('status')
-    .notEmpty().withMessage('Status is required')
-    .isIn(['present', 'absent', 'late']).withMessage('Status must be present, absent, or late')
+  validate({ params: Joi.object({ recordId: mongoId.required() }), body: Joi.object({ status: Joi.string().valid('present', 'absent', 'late').required() }) })
 ];
 
 // Bulk update validation
 export const bulkUpdateValidation = [
-  body('updates')
-    .isArray({ min: 1 }).withMessage('Updates must be a non-empty array'),
-  body('updates.*.recordId')
-    .notEmpty().withMessage('Record ID is required')
-    .isMongoId().withMessage('Invalid record ID'),
-  body('updates.*.status')
-    .notEmpty().withMessage('Status is required')
-    .isIn(['present', 'absent', 'late']).withMessage('Status must be present, absent, or late')
+  validate({ body: Joi.object({ updates: Joi.array().items(Joi.object({ recordId: mongoId.required(), status: Joi.string().valid('present', 'absent', 'late').required() })).min(1).required() }) })
 ];
 
 // Session ID parameter validation
 export const sessionIdValidation = [
-  param('sessionId')
-    .notEmpty().withMessage('Session ID is required')
-    .isMongoId().withMessage('Invalid session ID')
+  validate({ params: Joi.object({ sessionId: mongoId.required() }) })
 ];
 
 // Subject ID parameter validation
 export const subjectIdValidation = [
-  param('subjectId')
-    .notEmpty().withMessage('Subject ID is required')
-    .isMongoId().withMessage('Invalid subject ID')
+  validate({ params: Joi.object({ subjectId: mongoId.required() }) })
 ];
 
 // Class stats query validation
 export const classStatsValidation = [
-  query('batch')
-    .notEmpty().withMessage('Batch is required')
-    .isInt({ min: 2000, max: 2100 }).withMessage('Invalid batch year'),
-  query('semester')
-    .notEmpty().withMessage('Semester is required')
-    .isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  query('section')
-    .notEmpty().withMessage('Section is required')
-    .isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
-  query('subjectId')
-    .notEmpty().withMessage('Subject ID is required')
-    .isMongoId().withMessage('Invalid subject ID')
+  validate({ query: Joi.object({ batch: Joi.number().integer().min(2000).max(2100).required(), semester: Joi.number().integer().min(1).max(8).required(), section: Joi.string().valid('A', 'B', 'C').required(), subjectId: mongoId.required() }) })
 ];
 
 // Low attendance query validation
 export const lowAttendanceValidation = [
-  query('threshold')
-    .notEmpty().withMessage('Threshold is required')
-    .isFloat({ min: 0, max: 100 }).withMessage('Threshold must be between 0 and 100'),
-  query('batch')
-    .notEmpty().withMessage('Batch is required')
-    .isInt({ min: 2000, max: 2100 }).withMessage('Invalid batch year'),
-  query('semester')
-    .notEmpty().withMessage('Semester is required')
-    .isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  query('section')
-    .notEmpty().withMessage('Section is required')
-    .isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
-  query('subjectId')
-    .optional()
-    .isMongoId().withMessage('Invalid subject ID')
+  validate({ query: Joi.object({ threshold: Joi.number().min(0).max(100).required(), batch: Joi.number().integer().min(2000).max(2100).required(), semester: Joi.number().integer().min(1).max(8).required(), section: Joi.string().valid('A', 'B', 'C').required(), subjectId: mongoId.optional() }) })
 ];
 
 // Export data query validation
 export const exportDataValidation = [
-  query('batch')
-    .notEmpty().withMessage('Batch is required')
-    .isInt({ min: 2000, max: 2100 }).withMessage('Invalid batch year'),
-  query('semester')
-    .notEmpty().withMessage('Semester is required')
-    .isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  query('section')
-    .notEmpty().withMessage('Section is required')
-    .isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
-  query('subjectId')
-    .optional()
-    .isMongoId().withMessage('Invalid subject ID'),
-  query('startDate')
-    .optional()
-    .isISO8601().withMessage('Invalid start date format'),
-  query('endDate')
-    .optional()
-    .isISO8601().withMessage('Invalid end date format')
+  validate({ query: Joi.object({ batch: Joi.number().integer().min(2000).max(2100).required(), semester: Joi.number().integer().min(1).max(8).required(), section: Joi.string().valid('A', 'B', 'C').required(), subjectId: mongoId.optional(), startDate: Joi.date().iso().optional(), endDate: Joi.date().iso().optional() }) })
 ];
 
 // Trend query validation
 export const trendValidation = [
-  query('subjectId')
-    .optional()
-    .isMongoId().withMessage('Invalid subject ID'),
-  query('startDate')
-    .optional()
-    .isISO8601().withMessage('Invalid start date format'),
-  query('endDate')
-    .optional()
-    .isISO8601().withMessage('Invalid end date format')
+  validate({ query: Joi.object({ subjectId: mongoId.optional(), startDate: Joi.date().iso().optional(), endDate: Joi.date().iso().optional() }) })
 ];
 
 // History query validation
 export const historyValidation = [
-  query('subjectId')
-    .optional()
-    .isMongoId().withMessage('Invalid subject ID'),
-  query('batch')
-    .optional()
-    .isInt({ min: 2000, max: 2100 }).withMessage('Invalid batch year'),
-  query('semester')
-    .optional()
-    .isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  query('section')
-    .optional()
-    .isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
-  query('status')
-    .optional()
-    .isIn(['active', 'completed']).withMessage('Status must be active or completed'),
-  query('startDate')
-    .optional()
-    .isISO8601().withMessage('Invalid start date format'),
-  query('endDate')
-    .optional()
-    .isISO8601().withMessage('Invalid end date format'),
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 200 }).withMessage('Limit must be between 1 and 200')
+  validate({ query: Joi.object({ subjectId: mongoId.optional(), batch: Joi.number().integer().min(2000).max(2100).optional(), semester: Joi.number().integer().min(1).max(8).optional(), section: Joi.string().valid('A', 'B', 'C').optional(), status: Joi.string().valid('active', 'completed').optional(), startDate: Joi.date().iso().optional(), endDate: Joi.date().iso().optional(), limit: Joi.number().integer().min(1).max(200).optional() }) })
 ];

@@ -46,6 +46,11 @@ const generalUploader = multer({
     },
 });
 
+// NOTE: we no longer export a legacy `upload` instance. Consumers should use
+// the named middlewares below. Keep uploadFiles limit aligned with route
+// expectations (10 files) — update here if you want a different limit.
+export const uploadFiles = generalUploader.array('files', 10);
+
 // --- Multer Middleware: Avatar Image Upload ---
 // Filters files to ensure only images are accepted.
 const avatarFileFilter = (req, file, cb) => {
@@ -68,8 +73,5 @@ const avatarUploader = multer({
 
 
 // --- Named Exports ---
-// Middleware to handle up to 8 files from a field named 'files'
-export const uploadFiles = generalUploader.array('files', 8);
-
 // Middleware to handle a single file from a field named 'avatar'
 export const uploadAvatar = avatarUploader.single('avatar');

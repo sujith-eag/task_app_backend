@@ -1,5 +1,5 @@
-import { File } from '../../../models/fileModel.js';
-import { FileShare } from '../../../models/fileshareModel.js';
+import File from '../../../models/fileModel.js';
+import FileShare from '../../../models/fileshareModel.js';
 
 // ============================================================================
 // Authorization Policies

@@ -1,111 +1,54 @@
 /**
- * Chat Validators
- * Input validation middleware for chat-related requests
+ * Chat Validators (Joi)
  */
+import Joi from 'joi';
+import validate from '../../../middleware/validation.middleware.js';
 
-import { body, param, query } from 'express-validator';
+const mongoId = Joi.string().pattern(/^[0-9a-fA-F]{24}$/).message('Invalid ID format');
 
-/**
- * Validate conversation creation
- */
 export const validateCreateConversation = [
-    body('recipientId')
-        .notEmpty()
-        .withMessage('Recipient ID is required')
-        .isMongoId()
-        .withMessage('Invalid recipient ID format')
+    validate({ body: Joi.object({ recipientId: mongoId.required().messages({ 'any.required': 'Recipient ID is required' }) }) })
 ];
 
-/**
- * Validate conversation ID parameter
- */
 export const validateConversationId = [
-    param('id')
-        .isMongoId()
-        .withMessage('Invalid conversation ID')
+    validate({ params: Joi.object({ id: mongoId.required().messages({ 'any.required': 'Conversation ID is required' }) }) })
 ];
 
-/**
- * Validate message creation
- */
 export const validateCreateMessage = [
-    param('id')
-        .isMongoId()
-        .withMessage('Invalid conversation ID'),
-    
-    body('content')
-        .notEmpty()
-        .withMessage('Message content is required')
-        .trim()
-        .isLength({ min: 1, max: 5000 })
-        .withMessage('Message must be between 1 and 5000 characters')
+    validate({
+        params: Joi.object({ id: mongoId.required() }),
+        body: Joi.object({ content: Joi.string().trim().min(1).max(5000).required().messages({ 'any.required': 'Message content is required' }) })
+    })
 ];
 
-/**
- * Validate message pagination
- */
 export const validateMessagePagination = [
-    param('id')
-        .isMongoId()
-        .withMessage('Invalid conversation ID'),
-    
-    query('page')
-        .optional()
-        .isInt({ min: 1 })
-        .withMessage('Page must be a positive integer'),
-    
-    query('limit')
-        .optional()
-        .isInt({ min: 1, max: 100 })
-        .withMessage('Limit must be between 1 and 100')
+    validate({
+        params: Joi.object({ id: mongoId.required() }),
+        query: Joi.object({
+            page: Joi.number().integer().min(1).optional(),
+            limit: Joi.number().integer().min(1).max(100).optional()
+        })
+    })
 ];
 
-/**
- * Validate message ID parameter
- */
 export const validateMessageId = [
-    param('id')
-        .isMongoId()
-        .withMessage('Invalid message ID')
+    validate({ params: Joi.object({ id: mongoId.required() }) })
 ];
 
-/**
- * Validate message search
- */
 export const validateMessageSearch = [
-    param('id')
-        .isMongoId()
-        .withMessage('Invalid conversation ID'),
-    
-    query('q')
-        .notEmpty()
-        .withMessage('Search query is required')
-        .isLength({ min: 1, max: 100 })
-        .withMessage('Search query must be between 1 and 100 characters')
+    validate({
+        params: Joi.object({ id: mongoId.required() }),
+        query: Joi.object({ q: Joi.string().min(1).max(100).required().messages({ 'any.required': 'Search query is required' }) })
+    })
 ];
 
-/**
- * Validate Socket.IO message data
- */
 export const validateSocketMessage = (data) => {
-    const errors = [];
+    const schema = Joi.object({
+        recipientId: Joi.string().required(),
+        content: Joi.string().trim().min(1).max(5000).required()
+    });
 
-    if (!data) {
-        errors.push('Message data is required');
-        return errors;
-    }
-
-    if (!data.recipientId || typeof data.recipientId !== 'string') {
-        errors.push('Valid recipient ID is required');
-    }
-
-    if (!data.content || typeof data.content !== 'string') {
-        errors.push('Message content is required');
-    } else if (data.content.trim().length === 0) {
-        errors.push('Message content cannot be empty');
-    } else if (data.content.length > 5000) {
-        errors.push('Message content cannot exceed 5000 characters');
-    }
-
-    return errors;
+    const { error } = schema.validate(data, { abortEarly: false });
+    if (!error) return [];
+    return error.details.map(d => d.message);
 };

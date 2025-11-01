@@ -1,5 +1,5 @@
 import express from 'express';
-import { getPublicDownload } from '../controllers/public.controller.js';
+import { getPublicDownloadLink } from '../controllers/public.controller.js';
 import {
   publicDownloadSchema,
   validate,
@@ -19,7 +19,7 @@ const router = express.Router();
 router.post(
   '/download',
   validate(publicDownloadSchema, 'body'),
-  getPublicDownload
+  getPublicDownloadLink
 );
 
 export default router;

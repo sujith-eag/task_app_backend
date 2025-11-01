@@ -13,7 +13,7 @@ import {
 } from '../policies/file.policies.js';
 import { protect } from '../../_common/middleware/auth.middleware.js';
 import { checkStorageQuota } from '../../_common/middleware/quota.middleware.js';
-import { upload } from '../../../middleware/file.middleware.js';
+import { uploadFiles } from '../../../middleware/file.middleware.js';
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ const router = express.Router();
 router.post(
   '/upload',
   protect,
-  upload.array('files', 10), // Max 10 files at once
+  uploadFiles, // Max 10 files at once (configured in middleware)
   validate(uploadFilesSchema),
   canUploadToFolder,
   checkStorageQuota,

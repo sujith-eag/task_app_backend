@@ -1,5 +1,5 @@
 import File from '../../../models/fileModel.js';
-import { FileShare } from '../../../models/fileshareModel.js';
+import FileShare from '../../../models/fileshareModel.js';
 import { deleteFile as deleteFromS3 } from '../../../services/s3.service.js';
 
 // ============================================================================
