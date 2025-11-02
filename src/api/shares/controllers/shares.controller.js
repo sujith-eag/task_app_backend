@@ -13,8 +13,11 @@ import * as sharesService from '../services/shares.service.js';
 export const createPublicShare = asyncHandler(async (req, res) => {
   const { duration } = req.body;
 
+  // Diagnostic: log params to help debug missing fileId
+  try { console.error('SHARES CTRL: createPublicShare req.params:', req.params); } catch (e) {}
+
   const result = await sharesService.createPublicShareService(
-    req.params.id,
+    req.params.fileId,
     req.user._id,
     duration
   );
@@ -29,7 +32,7 @@ export const createPublicShare = asyncHandler(async (req, res) => {
  */
 export const revokePublicShare = asyncHandler(async (req, res) => {
   const result = await sharesService.revokePublicShareService(
-    req.params.id,
+    req.params.fileId,
     req.user._id
   );
 
@@ -48,8 +51,11 @@ export const revokePublicShare = asyncHandler(async (req, res) => {
 export const shareFileWithUser = asyncHandler(async (req, res) => {
   const { userIdToShareWith, expiresAt } = req.body;
 
+  // Diagnostic: log params to help debug missing fileId
+  try { console.error('SHARES CTRL: shareFileWithUser req.params:', req.params); } catch (e) {}
+
   const result = await sharesService.shareFileWithUserService(
-    req.params.id,
+    req.params.fileId,
     req.user._id,
     userIdToShareWith,
     expiresAt
@@ -67,7 +73,7 @@ export const manageShareAccess = asyncHandler(async (req, res) => {
   const { userIdToRemove } = req.body;
 
   const result = await sharesService.manageShareAccessService(
-    req.params.id,
+    req.params.fileId,
     req.user._id,
     userIdToRemove
   );
@@ -104,7 +110,7 @@ export const shareFileWithClass = asyncHandler(async (req, res) => {
   const { batch, semester, section, subjectId } = req.body;
 
   const result = await sharesService.shareFileWithClassService(
-    req.params.id,
+    req.params.fileId,
     req.user._id,
     { batch, semester, section, subjectId }
   );
@@ -137,10 +143,20 @@ export const removeClassShare = asyncHandler(async (req, res) => {
  */
 export const getFileShares = asyncHandler(async (req, res) => {
   const result = await sharesService.getFileSharesService(
-    req.params.id,
+    req.params.fileId,
     req.user._id
   );
 
+  res.status(200).json(result);
+});
+
+/**
+ * @desc Get files the current user has shared with others
+ * @route GET /api/shares/my-shares
+ * @access Private
+ */
+export const getMySharedFiles = asyncHandler(async (req, res) => {
+  const result = await sharesService.getFilesSharedByUserService(req.user._id);
   res.status(200).json(result);
 });
 

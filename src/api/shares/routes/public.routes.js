@@ -22,4 +22,11 @@ router.post(
   getPublicDownloadLink
 );
 
+// Backwards-compatible route used by older frontend code: /api/public/files/download
+router.post(
+  '/files/download',
+  validate(publicDownloadSchema, 'body'),
+  getPublicDownloadLink
+);
+
 export default router;

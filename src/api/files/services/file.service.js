@@ -1,4 +1,5 @@
 import File from '../../../models/fileModel.js';
+import FileShare from '../../../models/fileshareModel.js';
 import { uploadFile as uploadToS3 } from '../../../services/s3/s3.service.js';
 import { getDownloadUrl, getPreviewUrl } from '../../../services/s3/s3.service.js';
 import * as pathService from './path.service.js';
@@ -157,28 +158,82 @@ export const getUserFilesService = async (userId, user, parentId) => {
   // If parentId is null (root view): run big query to find all root items the
   // user owns OR are shared with them (directly or via class share).
   if (targetParentId === null) {
+    // Get list of files directly shared with the user via FileShare
+    const sharedFileIds = await FileShare.find({ userId }).distinct('fileId');
+
+    const orClauses = [
+      { user: userId },
+    ];
+
+    if (sharedFileIds && sharedFileIds.length > 0) {
+      orClauses.push({ _id: { $in: sharedFileIds } });
+    }
+
+    if (Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
+      orClauses.push({
+        'sharedWithClass.batch': user.studentDetails.batch,
+        'sharedWithClass.section': user.studentDetails.section,
+        'sharedWithClass.semester': user.studentDetails.semester,
+      });
+    }
+
     const rootQuery = {
       parentId: null,
       isDeleted: false,
-      $or: [
-        { user: userId },
-        { 'sharedWith.user': userId },
-        ...(Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails
-          ? [
-              {
-                'sharedWithClass.batch': user.studentDetails.batch,
-                'sharedWithClass.section': user.studentDetails.section,
-                'sharedWithClass.semester': user.studentDetails.semester,
-              },
-            ]
-          : []),
-      ],
+      $or: orClauses,
     };
 
     const files = await File.find(rootQuery)
       .sort({ isFolder: -1, fileName: 1 })
-      .populate('user', 'name avatar')
-      .populate('sharedWith.user', 'name avatar');
+      .populate('user', 'name avatar');
+
+    // Attach share metadata for files owned by the requesting user
+    try {
+      const ownedFileIds = files.filter(f => String(f.user?._id || f.user) === String(userId)).map(f => String(f._id));
+      if (ownedFileIds.length > 0) {
+        // Load FileShare records for these files
+        const shares = await FileShare.find({ fileId: { $in: ownedFileIds } }).populate('userId', 'name avatar').lean();
+        const sharesByFile = shares.reduce((acc, s) => {
+          const k = String(s.fileId);
+          acc[k] = acc[k] || [];
+          acc[k].push(s);
+          return acc;
+        }, {});
+
+        // Ensure expired publicShare entries are deactivated and attach sharedWith arrays
+        const now = new Date();
+        for (const f of files) {
+          const fid = String(f._id);
+          if (String(f.user?._id || f.user) === String(userId)) {
+            const s = sharesByFile[fid] || [];
+            f.sharedWith = s.map(sh => ({
+              _id: sh._id,
+              user: sh.userId || null,
+              expiresAt: sh.expiresAt || null,
+              createdAt: sh.createdAt,
+            }));
+
+            // If publicShare expired, persist deactivation
+            try {
+              if (f.publicShare && f.publicShare.isActive && f.publicShare.expiresAt) {
+                const expires = new Date(f.publicShare.expiresAt);
+                if (expires < now) {
+                  await File.updateOne({ _id: f._id }, { $set: { 'publicShare.isActive': false, 'publicShare.code': null, 'publicShare.expiresAt': null } }).catch(() => null);
+                  f.publicShare.isActive = false;
+                  f.publicShare.code = null;
+                  f.publicShare.expiresAt = null;
+                }
+              }
+            } catch (e) {
+              // ignore per-file update errors
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // If share metadata fails for some reason, don't block the main listing
+      console.error('FILES SERVICE: failed to attach share metadata', e && e.message ? e.message : e);
+    }
 
     return { files, currentFolder: null, breadcrumbs: [] };
   }
@@ -195,13 +250,15 @@ export const getUserFilesService = async (userId, user, parentId) => {
   const normalizedUserId = String(userId);
   const ownerId = parentFolder.user ? String(parentFolder.user) : null;
   let isOwner = ownerId === normalizedUserId;
+  // Check direct share via FileShare collection (if present and not expired)
   let isSharedWith = false;
-  if (Array.isArray(parentFolder.sharedWith) && parentFolder.sharedWith.length > 0) {
-    isSharedWith = parentFolder.sharedWith.some((s) => {
-      const sid = s.user ? String(s.user) : String(s);
-      const notExpired = !s.expiresAt || s.expiresAt > new Date();
-      return sid === normalizedUserId && notExpired;
-    });
+  try {
+    const fsDoc = await FileShare.findOne({ fileId: parentFolder._id, userId });
+    if (fsDoc) {
+      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
+    }
+  } catch (e) {
+    isSharedWith = false;
   }
   let isClassShared = false;
   if (!isOwner && !isSharedWith && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
@@ -223,8 +280,7 @@ export const getUserFilesService = async (userId, user, parentId) => {
   // Authorized: return children with a simple, fast query (permission inheritance)
   const files = await File.find({ parentId: targetParentId, isDeleted: false })
     .sort({ isFolder: -1, fileName: 1 })
-    .populate('user', 'name avatar')
-    .populate('sharedWith.user', 'name avatar');
+    .populate('user', 'name avatar');
 
   // Build breadcrumbs from parentFolder.path
   let breadcrumbs = [];
@@ -279,11 +335,16 @@ export const getFileDownloadUrlService = async (fileId, userId, user = null) => 
   const normalizedUserId = String(userId);
   const ownerId = extractId(file.user);
   const isOwner = ownerId === normalizedUserId;
-  const isSharedWith = (file.sharedWith || []).some((share) => {
-    const sharedUserId = extractId(share.user);
-    const notExpired = !share.expiresAt || share.expiresAt > new Date();
-    return sharedUserId === normalizedUserId && notExpired;
-  });
+  // Check direct share via FileShare collection
+  let isSharedWith = false;
+  try {
+    const fsDoc = await FileShare.findOne({ fileId: file._id, userId });
+    if (fsDoc) {
+      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
+    }
+  } catch (e) {
+    isSharedWith = false;
+  }
 
   // Class-share check (optional): callers can provide the `user` object so we can evaluate
   // class-based shares (batch/section/semester). If caller doesn't provide `user`, we fall
@@ -338,14 +399,18 @@ export const getBulkDownloadFilesService = async (fileIds, userId, user = null) 
   // Validate permission per-file (owner OR direct share with non-expired OR class-share if user provided)
   const normalizedUserId = String(userId);
   const unauthorized = [];
+  // Preload direct shares for these candidate files for this user
+  const sharedDocs = await FileShare.find({ fileId: { $in: fileIds }, userId });
+  const sharedValidSet = new Set(
+    sharedDocs
+      .filter((s) => !s.expiresAt || s.expiresAt > new Date())
+      .map((s) => String(s.fileId))
+  );
+
   for (const f of candidateFiles) {
     const ownerId = f.user ? String(f.user) : null;
     const isOwner = ownerId === normalizedUserId;
-    const isSharedWith = (f.sharedWith || []).some((s) => {
-      const sid = s.user ? String(s.user) : String(s);
-      const notExpired = !s.expiresAt || s.expiresAt > new Date();
-      return sid === normalizedUserId && notExpired;
-    });
+    const isSharedWith = sharedValidSet.has(String(f._id));
 
     let isClassShared = false;
     if (!isOwner && !isSharedWith && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
@@ -405,11 +470,16 @@ export const getFilePreviewUrlService = async (fileId, userId, user = null) => {
   const normalizedUserId = String(userId);
   const ownerId = extractId(file.user);
   const isOwner = ownerId === normalizedUserId;
-  const isSharedWith = (file.sharedWith || []).some((share) => {
-    const sharedUserId = extractId(share.user);
-    const notExpired = !share.expiresAt || share.expiresAt > new Date();
-    return sharedUserId === normalizedUserId && notExpired;
-  });
+  // Check direct share via FileShare collection
+  let isSharedWith = false;
+  try {
+    const fsDoc = await FileShare.findOne({ fileId: file._id, userId });
+    if (fsDoc) {
+      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
+    }
+  } catch (e) {
+    isSharedWith = false;
+  }
 
   let isClassShared = false;
   if (!isOwner && !isSharedWith && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
@@ -440,10 +510,13 @@ export const searchFilesService = async (userId, user, q) => {
   if (!q || typeof q !== 'string' || q.trim() === '') return [];
   const searchText = q.trim();
 
+  // Use FileShare to find file IDs shared with the user
+  const sharedFileIds = await FileShare.find({ userId }).distinct('fileId');
+
   const baseOr = [
     { user: userId },
-    { 'sharedWith.user': userId },
   ];
+  if (sharedFileIds && sharedFileIds.length > 0) baseOr.push({ _id: { $in: sharedFileIds } });
 
   // Class-share clause when user is student
   if (Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
@@ -464,7 +537,7 @@ export const searchFilesService = async (userId, user, q) => {
     .sort({ score: { $meta: 'textScore' }, isFolder: -1, fileName: 1 })
     .limit(200)
     .populate('user', 'name avatar')
-    .populate('sharedWith.user', 'name avatar');
+    ;
 
   return files;
 };
@@ -487,12 +560,13 @@ export const getDescendantFilesService = async (folderId, userId, user = null) =
   let isOwner = ownerId === normalizedUserId;
 
   let isSharedWith = false;
-  if (Array.isArray(parentFolder.sharedWith) && parentFolder.sharedWith.length > 0) {
-    isSharedWith = parentFolder.sharedWith.some((s) => {
-      const sid = s.user ? String(s.user) : String(s);
-      const notExpired = !s.expiresAt || s.expiresAt > new Date();
-      return sid === normalizedUserId && notExpired;
-    });
+  try {
+    const fsDoc = await FileShare.findOne({ fileId: parentFolder._id, userId });
+    if (fsDoc) {
+      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
+    }
+  } catch (e) {
+    isSharedWith = false;
   }
 
   let isClassShared = false;
@@ -519,7 +593,7 @@ export const getDescendantFilesService = async (folderId, userId, user = null) =
   const descendants = await File.find({ path: { $regex: regex }, isFolder: false, isDeleted: false })
     .sort({ isFolder: -1, fileName: 1 })
     .populate('user', 'name avatar')
-    .populate('sharedWith.user', 'name avatar');
+    ;
 
   return descendants;
 };

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import FileShare from '../../../models/fileshareModel.js';
 import File from '../../../models/fileModel.js';
 import User from '../../../models/userModel.js';
+import mongoose from 'mongoose';
 
 // ============================================================================
 // Public Share Service
@@ -18,7 +19,30 @@ import User from '../../../models/userModel.js';
 export const createPublicShareService = async (fileId, userId, duration) => {
   // Implement public share as a subdocument on the File model
   const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) throw new Error('File not found or you do not have permission.');
+  if (!file) {
+    // Diagnostic: try to determine whether the file exists and who owns it
+    try {
+      const fallback = await File.findById(fileId).select('_id isDeleted user').lean().catch(() => null);
+      console.error('SHARES DEBUG: createPublicShare fallback:', { fileId, fallback });
+      if (fallback) {
+        if (fallback.isDeleted) {
+          const err = new Error('File not found.');
+          err.statusCode = 404;
+          throw err;
+        }
+        // File exists but owner mismatch
+        const err = new Error('You do not have permission to create a public share for this file.');
+        err.statusCode = 403;
+        throw err;
+      }
+    } catch (logErr) {
+      // swallow logging errors
+    }
+
+    const err = new Error('File not found or you do not have permission.');
+    err.statusCode = 404;
+    throw err;
+  }
 
   // Calculate expiration
   let expiresAt = new Date();
@@ -69,7 +93,11 @@ export const createPublicShareService = async (fileId, userId, duration) => {
  */
 export const revokePublicShareService = async (fileId, userId) => {
   const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) throw new Error('File not found or you do not have permission.');
+  if (!file) {
+    const err = new Error('File not found or you do not have permission.');
+    err.statusCode = 404;
+    throw err;
+  }
 
   if (!file.publicShare || !file.publicShare.isActive) {
     return { message: 'No public share found for this file.' };
@@ -146,13 +174,30 @@ export const shareFileWithUserService = async (
 ) => {
   // Fetch file and target user in parallel
   const [file, userToShareWith] = await Promise.all([File.findById(fileId), User.findById(userIdToShareWith)]);
-  if (!file) throw new Error('File not found.');
+  if (!file || file.isDeleted) {
+    // Add diagnostic logging to help debug why a valid-looking fileId returns null
+    try {
+      console.error('SHARES DEBUG: file lookup failed', { fileId, isValidObjectId: mongoose.Types.ObjectId.isValid(fileId), userIdToShareWith });
+      // Try a fallback findOne to capture any soft-delete or unusual state
+      const fallback = await File.findOne({ _id: fileId }).select('_id isDeleted user').lean().catch(() => null);
+      console.error('SHARES DEBUG: fallback findOne result:', fallback);
+    } catch (logErr) {
+      // swallow logging errors
+    }
+    const error = new Error('File not found.');
+    error.statusCode = 404;
+    throw error;
+  }
   if (String(file.user) !== String(userId)) {
     const error = new Error('You do not have permission to share this file.');
     error.statusCode = 403;
     throw error;
   }
-  if (!userToShareWith) throw new Error('User to share with not found.');
+  if (!userToShareWith) {
+    const error = new Error('User to share with not found.');
+    error.statusCode = 404;
+    throw error;
+  }
   if (String(userIdToShareWith) === String(userId)) {
     const error = new Error('You cannot share a file with yourself.');
     error.statusCode = 400;
@@ -174,11 +219,19 @@ export const shareFileWithUserService = async (
 
   const created = await FileShare.create({ fileId, userId: userIdToShareWith, expiresAt });
 
-  // Return created share populated
-  await created.populate('userId', 'name avatar');
-  await created.populate('fileId', 'fileName fileType size s3Key');
+  // Build a file-shaped payload so the frontend reducers can update state
+  const fileDoc = await File.findById(fileId).lean();
+  const shares = await FileShare.find({ fileId }).populate('userId', 'name avatar').lean();
 
-  return created;
+  // Map shares to a lightweight `sharedWith` array that the frontend expects
+  fileDoc.sharedWith = shares.map((s) => ({
+    _id: s._id,
+    user: s.userId || null,
+    expiresAt: s.expiresAt || null,
+    createdAt: s.createdAt
+  }));
+
+  return fileDoc;
 
 };
 
@@ -196,7 +249,11 @@ export const manageShareAccessService = async (
   userIdToRemove = null
 ) => {
   const file = await File.findById(fileId);
-  if (!file) throw new Error('File not found.');
+  if (!file || file.isDeleted) {
+    const error = new Error('File not found.');
+    error.statusCode = 404;
+    throw error;
+  }
 
   const isOwner = String(file.user) === String(userId);
   let targetUserId = null;
@@ -216,7 +273,17 @@ export const manageShareAccessService = async (
   // Delete the share record only
   const result = await FileShare.deleteOne({ fileId, userId: targetUserId });
 
-  return { message: 'Share removed', deletedCount: result.deletedCount };
+  // Return a file-shaped payload so frontend reducers can update/remove accordingly
+  const freshFile = await File.findById(fileId).lean();
+  const shares = await FileShare.find({ fileId }).populate('userId', 'name avatar').lean();
+  freshFile.sharedWith = shares.map((s) => ({
+    _id: s._id,
+    user: s.userId || null,
+    expiresAt: s.expiresAt || null,
+    createdAt: s.createdAt
+  }));
+
+  return freshFile;
 };
 
 /**
@@ -244,7 +311,8 @@ export const bulkRemoveShareAccessService = async (fileIds, userId) => {
   // Delete all matching shares from FileShare collection only
   const result = await FileShare.deleteMany({ fileId: { $in: fileIds }, userId });
 
-  return { message: `${result.deletedCount} file(s) successfully removed from your shared list.`, removedCount: result.deletedCount };
+  // Return the ids removed so the frontend can filter them out
+  return { ids: fileIds, message: `${result.deletedCount} file(s) successfully removed from your shared list.`, removedCount: result.deletedCount };
 };
 
 // ============================================================================
@@ -295,11 +363,25 @@ export const removeClassShareService = async (shareId, userId) => {
  * @returns {Promise<Object[]>} Array of shares
  */
 export const getFileSharesService = async (fileId, userId) => {
-  const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) throw new Error('File not found or you do not have permission.');
+  try {
+    // Ensure file exists and caller is owner
+    const file = await File.findById(fileId).select('user');
+    if (!file) {
+      // Return empty array when file does not exist to avoid bubbling UI errors
+      return [];
+    }
 
-  const shares = await FileShare.find({ fileId }).populate('userId', 'name avatar');
-  return shares;
+    if (String(file.user) !== String(userId)) {
+      // Non-owners should not see share lists; return empty array
+      return [];
+    }
+
+    const shares = await FileShare.find({ fileId }).populate('userId', 'name avatar');
+    return shares;
+  } catch (e) {
+    // On unexpected errors, return empty list to avoid breaking UI flows
+    return [];
+  }
 };
 
 /**
@@ -316,4 +398,74 @@ export const getFilesSharedWithUserService = async (userId, user) => {
     ...(share.fileId ? share.fileId.toObject() : {}),
     sharedAt: share.createdAt,
   }));
+};
+
+/**
+ * Get files owned by this user that have been shared (direct shares or active public shares)
+ * @param {string} userId - Owner user id
+ * @returns {Promise<Array>} Array of file documents (lean) with `sharedWith` array and `publicShare` where applicable
+ */
+export const getFilesSharedByUserService = async (userId) => {
+  // Populate owner info so the frontend can perform ownership checks reliably
+  const ownedFiles = await File.find({ user: userId }).populate('user', 'name avatar').lean();
+  if (!ownedFiles || ownedFiles.length === 0) return [];
+
+  const fileIds = ownedFiles.map((f) => String(f._id));
+
+  // Find all FileShare records for these files
+  const shares = await FileShare.find({ fileId: { $in: fileIds } }).populate('userId', 'name avatar').lean();
+
+  // Group shares by fileId
+  const sharesByFile = shares.reduce((acc, s) => {
+    const key = String(s.fileId);
+    acc[key] = acc[key] || [];
+    acc[key].push(s);
+    return acc;
+  }, {});
+
+  // Ensure expired publicShare entries are treated as inactive and persist that state.
+  // Any file whose publicShare.expiresAt < now will have its publicShare.isActive set to false
+  const now = new Date();
+  for (const f of ownedFiles) {
+    try {
+      if (f.publicShare && f.publicShare.isActive && f.publicShare.expiresAt) {
+        const expires = new Date(f.publicShare.expiresAt);
+        if (expires < now) {
+          // Mark as inactive in DB and in the returned object
+          await File.updateOne({ _id: f._id }, { $set: { 'publicShare.isActive': false, 'publicShare.code': null, 'publicShare.expiresAt': null } }).catch(() => null);
+          f.publicShare.isActive = false;
+          f.publicShare.code = null;
+          f.publicShare.expiresAt = null;
+        }
+      }
+    } catch (e) {
+      // swallow per-file update errors to avoid failing the whole listing
+    }
+  }
+
+  // Build result: include only files that have direct shares or active publicShare
+  const result = ownedFiles
+    .map((file) => {
+      // Normalize owner into an object with string _id so frontend comparisons like
+      // `file.user._id === userId` work consistently (some code expects an object).
+      const f = { ...file };
+      if (f.user && f.user._id) {
+        f.user = { _id: String(f.user._id), name: f.user.name, avatar: f.user.avatar };
+      } else if (f.user) {
+        // fallback: ensure _id is a string
+        f.user = { _id: String(f.user) };
+      }
+
+      const s = sharesByFile[String(file._id)] || [];
+      f.sharedWith = s.map((sh) => ({
+        _id: sh._id,
+        user: sh.userId || null,
+        expiresAt: sh.expiresAt || null,
+        createdAt: sh.createdAt,
+      }));
+      return f;
+    })
+    .filter((f) => (Array.isArray(f.sharedWith) && f.sharedWith.length > 0) || (f.publicShare && f.publicShare.isActive));
+
+  return result;
 };

@@ -1,4 +1,5 @@
 import File from '../../../models/fileModel.js';
+import FileShare from '../../../models/fileshareModel.js';
 
 // ============================================================================
 // Authorization Policies for Files Module
@@ -53,11 +54,17 @@ export const hasReadAccess = async (req, res, next) => {
     }
 
     const isOwner = item.user.toString() === userId.toString();
-    const isSharedWith = item.sharedWith.some(
-      (share) =>
-        share.user.toString() === userId.toString() &&
-        (!share.expiresAt || share.expiresAt > new Date())
-    );
+
+    // Check direct shares in FileShare collection
+    let isSharedWith = false;
+    try {
+      const fsDoc = await FileShare.findOne({ fileId: item._id, userId });
+      if (fsDoc) {
+        isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
+      }
+    } catch (e) {
+      isSharedWith = false;
+    }
 
     if (!isOwner && !isSharedWith) {
       return res.status(403).json({

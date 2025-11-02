@@ -9,6 +9,7 @@ import {
   shareFileWithClass,
   removeClassShare,
   getFileShares,
+  getMySharedFiles,
   getFilesSharedWithMe,
 } from '../controllers/shares.controller.js';
 import {
@@ -132,17 +133,22 @@ router.delete(
 // ============================================================================
 // Query/Listing Routes
 // ============================================================================
-
 /**
- * GET /api/shares/:fileId
- * Get all shares for a specific file
+ * GET /api/shares/my-shares
+ * Get files owned by current user that are shared with others
  */
-router.get('/:fileId', protect, loadFile, canViewFileShares, getFileShares);
+router.get('/my-shares', protect, getMySharedFiles);
 
 /**
  * GET /api/shares/shared-with-me
  * Get all files shared with current user
  */
 router.get('/shared-with-me', protect, getFilesSharedWithMe);
+
+/**
+ * GET /api/shares/:fileId
+ * Get all shares for a specific file
+ */
+router.get('/:fileId', protect, loadFile, canViewFileShares, getFileShares);
 
 export default router;

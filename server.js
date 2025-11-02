@@ -25,22 +25,10 @@ const server = http.createServer(app); // http server from the app
 
 // Connect DB with error handling
 connectDB()
-  .then(async () => {
+  .then(() => {
     console.log('MongoDB connected');
-
-    // Run one-off migration for stage 1 if not already applied.
-    try {
-      // Import dynamically to avoid top-level startup costs when not needed
-      const { default: migrateFn } = await import('./scripts/migrate_files_stage1.js');
-      // Our migration script exports `migrate` as default — run in apply mode once
-      // Use a run-once name so it will not run repeatedly
-      await migrateFn({ apply: true, runOnceName: 'files_stage_1' });
-    } catch (e) {
-      // If migration script isn't present or fails, log but continue server startup
-      console.error('Migration run failed or skipped:', e.message || e);
-    }
   })
-  .catch((err)=>{
+  .catch((err) => {
     console.error('DB connection error:', err);
     process.exit(1);
   });
