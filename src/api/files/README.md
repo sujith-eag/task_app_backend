@@ -302,7 +302,7 @@ NODE_ENV=development  # or production
 #### Upload Files
 ```http
 POST /api/files/upload
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: multipart/form-data
 
 Body (form-data):
@@ -328,7 +328,7 @@ Response: 201 Created
 #### List Files
 ```http
 GET /api/files?parentId=folder-id
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response: 200 OK
 {
@@ -347,7 +347,7 @@ Response: 200 OK
 #### Get Download Link
 ```http
 GET /api/files/:id/download
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response: 200 OK
 {
@@ -358,7 +358,7 @@ Response: 200 OK
 #### Bulk Download
 ```http
 POST /api/files/bulk-download
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 Body:
@@ -375,7 +375,7 @@ Binary ZIP file stream
 #### Create Folder
 ```http
 POST /api/folders
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 Body:
@@ -420,7 +420,7 @@ Response: 200 OK
 #### Move Item
 ```http
 PATCH /api/folders/:id/move
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 Body:
@@ -438,7 +438,7 @@ Response: 200 OK
 #### Rename Folder
 ```http
 PATCH /api/folders/:id/rename
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 Body:
@@ -458,7 +458,7 @@ Response: 200 OK
 #### Delete Folder
 ```http
 DELETE /api/folders/:id
-Authorization: Bearer {token}
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response: 200 OK
 {

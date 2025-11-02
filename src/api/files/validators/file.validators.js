@@ -91,7 +91,31 @@ export const validate = (schema, source = 'body') => {
     }
 
     // Replace req[source] with validated and sanitized value
-    req[source] = value;
+    try {
+      if (source === 'query') {
+        // Some Express versions expose a getter-only req.query which cannot be
+        // reassigned. Attempt to copy properties into the existing object; if
+        // that isn't possible, attach a fallback property prefixed with
+        // `validated_` so callers can still access the sanitized query.
+        if (req.query && typeof req.query === 'object') {
+          try {
+            // Clear existing keys then copy validated values in
+            Object.keys(req.query).forEach((k) => { delete req.query[k]; });
+            Object.assign(req.query, value);
+          } catch (innerErr) {
+            // Fallback: attach validated query under a different key
+            req.validated_query = value;
+          }
+        } else {
+          try { req.query = value; } catch (e) { req.validated_query = value; }
+        }
+      } else {
+        req[source] = value;
+      }
+    } catch (err) {
+      // As a last resort, attach the validated payload under a fallback key
+      req[`validated_${source}`] = value;
+    }
     next();
   };
 };

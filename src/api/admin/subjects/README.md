@@ -409,45 +409,29 @@ All controller methods use `express-async-handler` to catch async errors automat
 Cascading operations are performed synchronously to ensure data consistency before responding to the client.
 
 ## Usage Examples
-
 ```javascript
+// Using a central apiClient (axios) configured with `withCredentials: true`
+// Example apiClient (defined elsewhere):
+// const apiClient = axios.create({ baseURL: '/api', withCredentials: true });
+
 // Create a new subject
-const createResponse = await fetch('/api/admin/subjects', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer <admin-token>'
-  },
-  body: JSON.stringify({
-    name: 'Data Structures',
-    subjectCode: 'CS301',
-    semester: 3,
-    department: 'Computer Science'
-  })
+const createResponse = await apiClient.post('/admin/subjects', {
+  name: 'Data Structures',
+  subjectCode: 'CS301',
+  semester: 3,
+  department: 'Computer Science'
 });
 
 // Get subjects by semester
-const subjects = await fetch('/api/admin/subjects?semester=3', {
-  headers: { 'Authorization': 'Bearer <admin-token>' }
-});
+const subjects = await apiClient.get('/admin/subjects', { params: { semester: 3 } });
 
 // Update subject
-const updateResponse = await fetch('/api/admin/subjects/507f1f77bcf86cd799439011', {
-  method: 'PUT',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer <admin-token>'
-  },
-  body: JSON.stringify({
-    semester: 4  // This will trigger cascade removal
-  })
+const updateResponse = await apiClient.put('/admin/subjects/507f1f77bcf86cd799439011', {
+  semester: 4  // This will trigger cascade removal
 });
 
 // Delete subject
-const deleteResponse = await fetch('/api/admin/subjects/507f1f77bcf86cd799439011', {
-  method: 'DELETE',
-  headers: { 'Authorization': 'Bearer <admin-token>' }
-});
+const deleteResponse = await apiClient.delete('/admin/subjects/507f1f77bcf86cd799439011');
 ```
 
 ## Testing Considerations
@@ -469,6 +453,13 @@ When testing this sub-domain:
   - Works with `teacher-assignments` for assignment validation
   - Works with `management` for enrollment validation
   - Affects `reports` when subject data changes
+
+## Auth & Session (cookie-first)
+
+- Browser sessions use an httpOnly cookie named `jwt` set by the server. The cookie is authoritative; clients must not read or forward the raw JWT value from JavaScript.
+- Server middleware precedence: cookie.jwt -> Authorization header (for non-browser clients) -> body token. Use the canonical middleware from `src/api/_common/middleware` (import `protect`, `isAdmin`/RBAC helpers).
+- Client examples below use a central `apiClient` configured with `withCredentials: true`. If using fetch directly, include `credentials: 'include'`.
+
 
 ## Performance Considerations
 

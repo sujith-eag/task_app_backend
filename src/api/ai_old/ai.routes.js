@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
-import { protect } from '../../middleware/auth.middleware.js';
-import { checkAIDailyLimit } from '../../middleware/checkAIDailyLimit.js'
+import { protect } from '../_common/middleware/auth.middleware.js';
+import { checkAIDailyLimit } from '../_common/middleware/aiLimit.middleware.js'
 import { 
     generateTasksWithAI, 
     getAIPlanPreview } from './ai.controller.js';

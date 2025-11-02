@@ -7,8 +7,8 @@ import express from 'express';
 import * as conversationsController from '../controllers/conversations.controller.js';
 import * as messagesController from '../controllers/messages.controller.js';
 import * as validators from '../validators/chat.validator.js';
-import { protect } from '../../../middleware/auth.middleware.js';
-import { validate } from '../../../middleware/validation.middleware.js';
+import { protect } from '../../_common/middleware/auth.middleware.js';
+import { validate } from '../../_common/middleware/validation.middleware.js';
 
 const router = express.Router();
 

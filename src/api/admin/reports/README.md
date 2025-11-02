@@ -466,31 +466,31 @@ reports/
 ## Usage Examples
 
 ```javascript
-// Get attendance stats for a specific teacher
-const stats = await fetch('/api/admin/reports/attendance-stats?teacherId=507f1f77bcf86cd799439011', {
-  headers: { 'Authorization': 'Bearer <token>' }
-});
+// Example using apiClient (axios) configured with `withCredentials: true` — recommended for browser clients
+const stats = await apiClient.get('/api/admin/reports/attendance-stats', { params: { teacherId: '507f1f77bcf86cd799439011' } });
 
-// Get feedback summary for semester 3
-const summary = await fetch('/api/admin/reports/feedback-summary?semester=3', {
-  headers: { 'Authorization': 'Bearer <token>' }
-});
+const summary = await apiClient.get('/api/admin/reports/feedback-summary', { params: { semester: 3 } });
 
-// Get detailed feedback for a class session
-const feedback = await fetch('/api/admin/reports/feedback-report/507f1f77bcf86cd799439099', {
-  headers: { 'Authorization': 'Bearer <token>' }
-});
+const feedback = await apiClient.get('/api/admin/reports/feedback-report/507f1f77bcf86cd799439099');
 
-// Get teacher performance report
-const teacherReport = await fetch('/api/admin/reports/teacher/507f1f77bcf86cd799439011', {
-  headers: { 'Authorization': 'Bearer <token>' }
-});
+const teacherReport = await apiClient.get('/api/admin/reports/teacher/507f1f77bcf86cd799439011');
 
-// Get student attendance report
-const studentReport = await fetch('/api/admin/reports/student/507f1f77bcf86cd799439044', {
-  headers: { 'Authorization': 'Bearer <token>' }
-});
+const studentReport = await apiClient.get('/api/admin/reports/student/507f1f77bcf86cd799439044');
+
+// If using fetch(), include credentials so the httpOnly cookie is sent:
+// fetch('/api/admin/reports/attendance-stats?teacherId=...', { credentials: 'include' })
 ```
+
+## Auth & Session (notes for implementers)
+
+- Reports endpoints rely on server-side session cookie authentication (httpOnly `jwt`). Frontend browser clients should not attempt to read or forward JWT values from Redux or local storage.
+- Use `protect` and `isAdminOrHOD` middleware from `src/api/_common/middleware/`. Legacy `src/middleware/` shims are available during migration but prefer the `_common` path.
+- Reports should emit audit events for sensitive report exports or access (use `logAudit` in `_common/services/audit.service.js`) and consider rate-limiting for heavy aggregation queries.
+
+## Performance & Monitoring
+
+- Long-running aggregations should be monitored and instrumented. Consider sampling slow queries and exposing telemetry.
+- For heavy repeated queries, consider short TTL caching (5-10 minutes) and invalidation strategies tied to class/session updates.
 
 ## Testing Considerations
 

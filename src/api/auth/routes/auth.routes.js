@@ -8,7 +8,7 @@ import {
   resetPasswordSchema,
   validate,
 } from '../validators/auth.validators.js';
-import { authLimiter } from '../../../middleware/rateLimiter.middleware.js';
+import { authLimiter } from '../../_common/middleware/rateLimit.middleware.js';
 
 const router = express.Router();
 
@@ -45,7 +45,7 @@ router.post(
  * @desc    Logout and clear httpOnly cookie
  * @access  Public (clears cookie)
  */
-router.post('/logout', protect, authController.logoutUser);
+router.post('/logout', authController.logoutUser);
 
 /**
  * @route   GET /api/auth/sessions

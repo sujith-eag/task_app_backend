@@ -27,3 +27,7 @@ export const isAdminOrHOD = hasRole(['admin', 'hod']);
 
 // Export the generic hasRole function for custom role combinations
 export { hasRole };
+
+// Backwards compatibility alias: some older modules import `authorize`.
+// Keep this alias so legacy route files using `authorize('role')` continue to work.
+export const authorize = hasRole;

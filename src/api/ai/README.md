@@ -353,7 +353,7 @@ The AI domain relies on `src/services/llm.service.js`:
 
 ```javascript
 POST /api/ai/tasks/preview
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -367,7 +367,7 @@ Content-Type: application/json
 
 ```javascript
 POST /api/ai/tasks/preview
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -393,7 +393,7 @@ Content-Type: application/json
 
 ```javascript
 POST /api/ai/tasks/generate
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -405,7 +405,7 @@ Content-Type: application/json
 
 ```javascript
 GET /api/ai/stats
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ### Viewing Prompt History
@@ -413,7 +413,7 @@ Authorization: Bearer <token>
 ```javascript
 // Get all prompts
 GET /api/ai/prompts/history?limit=50
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Get prompts for specific session
 GET /api/ai/prompts/history?sessionId=fitness-plan-2024-12-25
@@ -424,7 +424,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/ai/sessions
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ### Clearing Old Prompts
@@ -432,7 +432,7 @@ Authorization: Bearer <token>
 ```javascript
 // Delete prompts older than 60 days
 DELETE /api/ai/prompts/history?daysOld=60
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ## Authorization
@@ -565,3 +565,19 @@ Potential improvements for future iterations:
 **Last Updated**: December 2024  
 **Architecture Version**: Phase 0  
 **Status**: ✅ Complete and ready for integration
+
+---
+
+## Migration note (shared helpers & middleware)
+
+This domain relies on shared middleware and utilities. The canonical implementations for
+authentication, RBAC, validation, http helpers and small services live under
+`src/api/_common/`. Please import from `_common` when wiring routes and services. Example:
+
+```js
+import { checkAIDailyLimit } from '../_common/middleware/aiLimit.middleware.js';
+import asyncHandler from '../_common/http/asyncHandler.js';
+```
+
+Legacy compatibility shims remain under `src/middleware/` and emit deprecation warnings.
+See `src/api/_common/README.md` for details and examples.

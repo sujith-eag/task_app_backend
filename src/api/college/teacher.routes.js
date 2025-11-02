@@ -1,8 +1,8 @@
 import express from 'express';
 
-import { protect } from '../../middleware/auth.middleware.js';
+import { protect } from '../_common/middleware/auth.middleware.js';
 
-import { isTeacher } from '../../middleware/role.middleware.js';
+import { isTeacher } from '../_common/middleware/rbac.middleware.js';
 import {
     getClassCreationData,
     createClassSession,

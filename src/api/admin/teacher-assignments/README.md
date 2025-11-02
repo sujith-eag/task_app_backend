@@ -244,33 +244,21 @@ All controller methods use `express-async-handler` to catch async errors automat
 Service layer throws descriptive errors that are caught and formatted by the controller/middleware.
 
 ## Usage Example
-
 ```javascript
+// Using a central apiClient (axios) configured with `withCredentials: true`
+// Example apiClient (defined elsewhere):
+// const apiClient = axios.create({ baseURL: '/api', withCredentials: true });
+
 // Create a new assignment
-const response = await fetch('/api/admin/teacher-assignments/507f1f77bcf86cd799439011', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer <admin-token>'
-  },
-  body: JSON.stringify({
-    subject: '507f1f77bcf86cd799439022',
-    sections: ['A', 'B'],
-    batch: 2021,
-    semester: 3
-  })
+const response = await apiClient.post('/admin/teacher-assignments/507f1f77bcf86cd799439011', {
+  subject: '507f1f77bcf86cd799439022',
+  sections: ['A', 'B'],
+  batch: 2021,
+  semester: 3
 });
 
 // Delete an assignment
-const deleteResponse = await fetch(
-  '/api/admin/teacher-assignments/507f1f77bcf86cd799439011/507f1f77bcf86cd799439099',
-  {
-    method: 'DELETE',
-    headers: {
-      'Authorization': 'Bearer <admin-token>'
-    }
-  }
-);
+const deleteResponse = await apiClient.delete('/admin/teacher-assignments/507f1f77bcf86cd799439011/507f1f77bcf86cd799439099');
 ```
 
 ## Testing Considerations
@@ -289,6 +277,13 @@ When testing this sub-domain:
 - **Parent Router**: Mounted at `/api/admin/teacher-assignments` by admin parent router
 - **Middleware**: Requires `protect` and `isAdmin` middleware from parent
 - **Related Domains**: Works with `subjects` sub-domain for subject validation
+
+## Auth & Session (cookie-first)
+
+- Browser sessions rely on an httpOnly cookie named `jwt`; clients must not attempt to read or forward the JWT from client-side code.
+- Server middleware follows precedence: cookie.jwt -> Authorization header (non-browser clients) -> body token. Prefer importing `protect` and RBAC helpers from `src/api/_common/middleware`.
+- Examples in this README use a centralized `apiClient` with `withCredentials: true`. When using fetch directly include `credentials: 'include'`.
+
 
 ## Future Enhancements
 

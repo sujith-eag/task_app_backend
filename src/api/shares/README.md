@@ -199,7 +199,7 @@ FileShare.cleanExpired()
 
 ```http
 POST /api/shares/:fileId/public
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -222,7 +222,7 @@ Response 200:
 
 ```http
 DELETE /api/shares/:fileId/public
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -236,7 +236,7 @@ Response 200:
 
 ```http
 POST /api/shares/:fileId/user
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -260,7 +260,7 @@ Response 200:
 
 ```http
 DELETE /api/shares/:fileId/user
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -277,7 +277,7 @@ Response 200:
 
 ```http
 POST /api/shares/bulk-remove
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -296,7 +296,7 @@ Response 200:
 
 ```http
 POST /api/shares/:fileId/class
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -326,7 +326,7 @@ Response 200:
 
 ```http
 DELETE /api/shares/:fileId/class
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -340,7 +340,7 @@ Response 200:
 
 ```http
 GET /api/shares/:fileId
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -376,7 +376,7 @@ Response 200:
 
 ```http
 GET /api/shares/shared-with-me
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -800,6 +800,8 @@ Example error response:
 - **FileShare Model**: `src/models/fileshareModel.js` - Share entity
 - **Auth Middleware**: `src/middleware/auth.middleware.js` - JWT authentication
 - **S3 Service**: `src/services/s3.service.js` - File storage operations
+
+> Note: Authentication and middleware have been consolidated. The canonical auth middleware now lives at `src/api/_common/middleware/auth.middleware.js` and the system issues an httpOnly cookie named `jwt` for browser sessions. Runtime code should prefer the cookie (via `withCredentials`) — legacy `src/middleware/auth.middleware.js` is retained as a compatibility shim that re-exports the centralized implementation and emits a deprecation warning. For non-browser clients, Authorization header remains supported.
 
 ---
 

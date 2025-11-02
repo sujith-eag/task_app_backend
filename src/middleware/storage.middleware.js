@@ -1,80 +1,11 @@
-import asyncHandler from 'express-async-handler';
-import File from '../models/fileModel.js';
-import User from '../models/userModel.js';
-
-
-// Central configuration for quotas. Easy to manage and update.
-export const QUOTAS = {
-    user: {
-        maxFiles: 20,
-        maxSizeMB: 50
-    },
-    student: {
-        maxFiles: 50,
-        maxSizeMB: 200
-    },
-    teacher: {
-        maxFiles: 100,
-        maxSizeMB: 500
-    },
-    // HOD and Admin have no limits
-    hod: {
-        maxFiles: Infinity,
-        maxSizeMB: Infinity
-    },
-    admin: {
-        maxFiles: Infinity,
-        maxSizeMB: Infinity
-    }
-};
-
-/**
- * Middleware to check if a user has reached their storage quota based on their role.
- * Enforces both file count and total size limits.
- * Must be used AFTER the 'protect' middleware.
+/*
+ * Legacy shim for storage/quota middleware.
+ * Re-exports the centralized quota middleware from src/api/_common/middleware/quota.middleware.js
  */
-export const checkStorageQuota = asyncHandler(async (req, res, next) => {
-    // Determine effective role from roles array (most permissive)
-    const roles = Array.isArray(req.user?.roles) ? req.user.roles : (req.user?.role ? [req.user.role] : ['user']);
-    const precedence = ['admin', 'hod', 'teacher', 'student', 'user'];
-    const userRole = precedence.find(r => roles.includes(r)) || 'user';
-    const quota = QUOTAS[userRole] || QUOTAS.user; // Default to 'user' quota
 
-    // If quota is unlimited, skip all checks
-    if (quota.maxFiles === Infinity) {
-        return next();
-    }
+import * as quota from '../api/_common/middleware/quota.middleware.js';
 
-    // --- Calculate Current Usage ---
-    const usage = await File.aggregate([
-        { $match: { user: req.user._id } },
-        {
-            $group: {
-                _id: null,
-                totalSize: { $sum: '$size' },
-                fileCount: { $sum: 1 }
-            }
-        }
-    ]);
+console.warn('[DEPRECATION] src/middleware/storage.middleware.js is deprecated. Please import from src/api/_common/middleware/quota.middleware.js instead.');
 
-    const { totalSize, fileCount } = usage[0] || { totalSize: 0, fileCount: 0 };
-
-    // --- Calculate Incoming Request Size ---
-    const incomingFileCount = req.files ? req.files.length : 0;
-    const incomingSize = req.files ? req.files.reduce((acc, file) => acc + file.size, 0) : 0;
-
-    // --- Enforce Limits ---
-    const quotaBytes = quota.maxSizeMB * 1024 * 1024;
-
-    if (fileCount + incomingFileCount > quota.maxFiles) {
-        res.status(403);
-        throw new Error(`Storage limit reached. Your role (${userRole}) is limited to ${quota.maxFiles} files.`);
-    }
-
-    if (totalSize + incomingSize > quotaBytes) {
-        res.status(403);
-        throw new Error(`Storage limit reached. Your role (${userRole}) is limited to ${quota.maxSizeMB}MB.`);
-    }
-
-    next();
-});
+export const QUOTAS = quota.QUOTAS;
+export const checkStorageQuota = quota.checkStorageQuota;

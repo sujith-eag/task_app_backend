@@ -451,53 +451,30 @@ All controller methods use `express-async-handler` to catch async errors automat
 Email failures are logged but do not affect the response or rollback the promotion.
 
 ## Usage Examples
-
 ```javascript
+// Using a central apiClient (axios) configured with `withCredentials: true`
+// Example apiClient (defined elsewhere):
+// const apiClient = axios.create({ baseURL: '/api', withCredentials: true });
+
 // Get all students
-const students = await fetch('/api/admin/management/users?role=student', {
-  headers: { 'Authorization': 'Bearer <admin-token>' }
-});
+const students = await apiClient.get('/admin/management/users', { params: { role: 'student' } });
 
 // Update student details
-const updateStudent = await fetch('/api/admin/management/students/507f1f77bcf86cd799439011', {
-  method: 'PUT',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer <admin-token>'
-  },
-  body: JSON.stringify({
-    semester: 4,
-    section: 'B'
-  })
+const updateStudent = await apiClient.put('/admin/management/students/507f1f77bcf86cd799439011', {
+  semester: 4,
+  section: 'B'
 });
 
 // Update enrollment
-const updateEnrollment = await fetch(
-  '/api/admin/management/students/507f1f77bcf86cd799439011/enrollment',
-  {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer <admin-token>'
-    },
-    body: JSON.stringify({
-      subjectIds: ['507f1f77bcf86cd799439022', '507f1f77bcf86cd799439033']
-    })
-  }
-);
+const updateEnrollment = await apiClient.put('/admin/management/students/507f1f77bcf86cd799439011/enrollment', {
+  subjectIds: ['507f1f77bcf86cd799439022', '507f1f77bcf86cd799439033']
+});
 
 // Promote to faculty
-const promote = await fetch('/api/admin/management/users/507f1f77bcf86cd799439011/promote', {
-  method: 'PATCH',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer <admin-token>'
-  },
-  body: JSON.stringify({
-    role: 'teacher',
-    staffId: 'FAC001',
-    department: 'Computer Science'
-  })
+const promote = await apiClient.patch('/admin/management/users/507f1f77bcf86cd799439011/promote', {
+  role: 'teacher',
+  staffId: 'FAC001',
+  department: 'Computer Science'
 });
 ```
 
@@ -522,6 +499,13 @@ When testing this sub-domain:
   - Works with `applications` for student verification flow
   - Works with `teacher-assignments` for faculty assignment management
   - Works with `subjects` for enrollment validation
+
+## Auth & Session (cookie-first)
+
+- Browser sessions use an httpOnly cookie named `jwt` set by the server. The cookie is authoritative; clients must not read or forward the raw JWT value from JavaScript.
+- Server middleware precedence: cookie.jwt -> Authorization header (for non-browser clients) -> body token. Import canonical middleware from `src/api/_common/middleware` (e.g. `protect`, `isAdmin`).
+- Client examples below show usage with a central `apiClient` configured with `withCredentials: true`. For plain fetch use `credentials: 'include'`.
+
 
 ## Future Enhancements
 

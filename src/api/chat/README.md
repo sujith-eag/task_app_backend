@@ -435,7 +435,7 @@ Handles message operations:
 
 ```javascript
 POST /api/chat/conversations
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -463,14 +463,14 @@ socket.emit('sendMessage', {
 
 ```javascript
 GET /api/chat/conversations/507f1f77bcf86cd799439011/messages?page=1&limit=50
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ### Marking Messages as Read
 
 ```javascript
 PUT /api/chat/conversations/507f1f77bcf86cd799439011/messages/read
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ### Typing Indicators
@@ -498,7 +498,7 @@ socket.on('typing', ({ conversationId, from }) => {
 
 ```javascript
 GET /api/chat/conversations/507f1f77bcf86cd799439011/messages/search?q=hello
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ## Integration Notes

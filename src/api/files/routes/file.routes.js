@@ -13,7 +13,7 @@ import {
 } from '../policies/file.policies.js';
 import { protect } from '../../_common/middleware/auth.middleware.js';
 import { checkStorageQuota } from '../../_common/middleware/quota.middleware.js';
-import { uploadFiles } from '../../../middleware/file.middleware.js';
+import { uploadFiles } from '../../_common/middleware/file.middleware.js';
 
 const router = express.Router();
 

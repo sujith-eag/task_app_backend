@@ -7,8 +7,8 @@ import express from 'express';
 import * as tasksController from '../controllers/tasks.controller.js';
 import * as subtasksController from '../controllers/subtasks.controller.js';
 import * as validators from '../validators/tasks.validator.js';
-import { protect } from '../../../middleware/auth.middleware.js';
-import { validate } from '../../../middleware/validation.middleware.js';
+import { protect } from '../../_common/middleware/auth.middleware.js';
+import { validate } from '../../_common/middleware/validation.middleware.js';
 
 const router = express.Router();
 

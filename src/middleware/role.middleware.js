@@ -1,22 +1,22 @@
-// @desc    Middleware to check if the user has a specific role or set of roles.
-// This should be placed after the 'protect' middleware in the route chain.
-// @param   {string[]} roles - An array of strings representing the allowed roles.
-// @returns {function} Express middleware function.
+/*
+ * Legacy shim for role middleware.
+ * This file now re-exports the centralized RBAC middleware located at
+ * ../api/_common/middleware/rbac.middleware.js
+ *
+ * Reason: keep backward compatibility for any remaining imports that
+ * reference `src/middleware/role.middleware.js` while consolidating
+ * the real implementations in the _common folder.
+ */
 
-const hasRole = (roles) => {
-  return (req, res, next) => {
-    // 'protect' middleware has attached req.user and user.roles
-    if (!req.user || !Array.isArray(req.user.roles) || !roles.some(r => req.user.roles.includes(r))) {
-      res.status(403); // 403 Forbidden
-      throw new Error('Not authorized. You do not have the required permissions.');
-    }
-    next();
-  };
-};
+import * as rbac from '../api/_common/middleware/rbac.middleware.js';
 
-// Specific role checks for convenience and readability in route definitions
-export const isStudent = hasRole(['student']);
-export const isTeacher = hasRole(['teacher']);
-export const isAdmin = hasRole(['admin']);
-export const isHOD = hasRole(['hod']);
-export const isAdminOrHOD = hasRole(['admin', 'hod']);
+console.warn('[DEPRECATION] src/middleware/role.middleware.js is deprecated. Please import from src/api/_common/middleware/rbac.middleware.js instead.');
+
+export const isStudent = rbac.isStudent;
+export const isTeacher = rbac.isTeacher;
+export const isAdmin = rbac.isAdmin;
+export const isHOD = rbac.isHOD;
+export const isAdminOrHOD = rbac.isAdminOrHOD;
+
+// Backwards-compatible alias some code may expect
+export const hasRole = rbac.hasRole || rbac.authorize;

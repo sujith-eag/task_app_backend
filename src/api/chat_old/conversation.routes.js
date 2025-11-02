@@ -2,7 +2,7 @@ import express from 'express';
 
 const router = express.Router();
 
-import { protect } from '../../middleware/auth.middleware.js';
+import { protect } from '../_common/middleware/auth.middleware.js';
 import { createOrGetConversation , getConversations, 
     getMessagesForConversation } from './conversation.controller.js';
 

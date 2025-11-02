@@ -1,7 +1,7 @@
 import express from 'express';
-import { protect } from '../../middleware/auth.middleware.js';
-import { isStudent } from '../../middleware/role.middleware.js';
-import { generalApiLimiter } from '../../middleware/rateLimiter.middleware.js';
+import { protect } from '../_common/middleware/auth.middleware.js';
+import { isStudent } from '../_common/middleware/rbac.middleware.js';
+import { generalApiLimiter } from '../_common/middleware/rateLimit.middleware.js';
 
 import {
     markAttendance,

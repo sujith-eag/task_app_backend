@@ -196,7 +196,7 @@ socket.on('code-regenerated', (data) => {
 
 ```javascript
 POST /api/attendance/teacher/sessions
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 {
   "subject": "507f1f77bcf86cd799439011",
@@ -224,7 +224,7 @@ Authorization: Bearer <token>
 
 ```javascript
 POST /api/attendance/student/mark
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 {
   "attendanceCode": "12345678"
@@ -249,7 +249,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/attendance/student/stats
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Response
 {
@@ -283,8 +283,11 @@ Authorization: Bearer <token>
 import io from 'socket.io-client';
 
 // Connect to socket
+// Note: Do NOT send the httpOnly JWT from client-side JS. The server reads the cookie.
+// Optionally provide a non-sensitive deviceId for per-device tracking and ensure cookies are sent.
 const socket = io('http://localhost:5000', {
-  auth: { token: localStorage.getItem('token') }
+  auth: { deviceId: 'device-123' },
+  withCredentials: true,
 });
 
 // Join session room

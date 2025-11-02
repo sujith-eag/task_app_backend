@@ -103,7 +103,7 @@ When files are soft-deleted:
 
 ```http
 DELETE /api/trash/soft-delete/:fileId
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -122,7 +122,7 @@ Response 200:
 
 ```http
 POST /api/trash/soft-delete/bulk
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -142,7 +142,7 @@ Response 200:
 
 ```http
 POST /api/trash/restore/:fileId
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -161,7 +161,7 @@ Response 200:
 
 ```http
 POST /api/trash/restore/bulk
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -184,7 +184,7 @@ Note: Files with deleted/missing parents are skipped
 
 ```http
 DELETE /api/trash/purge/:fileId
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -198,7 +198,7 @@ Response 200:
 
 ```http
 POST /api/trash/purge/bulk
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -217,7 +217,7 @@ Response 200:
 
 ```http
 DELETE /api/trash/empty
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -233,7 +233,7 @@ Response 200:
 
 ```http
 GET /api/trash
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -263,7 +263,7 @@ Response 200:
 
 ```http
 GET /api/trash/stats
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {
@@ -281,7 +281,7 @@ Response 200:
 
 ```http
 POST /api/trash/cleanup
-Authorization: Bearer <token> (Admin only)
+Auth: Browser: httpOnly cookie `jwt` (Admin only). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -301,7 +301,7 @@ Response 200:
 
 ```http
 DELETE /api/trash/admin/hard-delete/:fileId
-Authorization: Bearer <token> (Admin only)
+Auth: Browser: httpOnly cookie `jwt` (Admin only). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 Response 200:
 {

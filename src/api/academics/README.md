@@ -304,3 +304,19 @@ When implementing the Academics domain:
 **Phase**: 0 (Placeholder)  
 **Status**: Under Development  
 **Contact**: Development Team for questions or suggestions
+
+---
+
+## Migration note (shared helpers & middleware)
+
+Common, shared middleware and utilities (authentication, RBAC, validation, http helpers,
+and small services) now live under `src/api/_common/`. When updating or adding routes and
+controllers prefer imports from the `_common` folder. Example:
+
+```js
+import { protect } from '../../_common/middleware/auth.middleware.js';
+import asyncHandler from '../../_common/http/asyncHandler.js';
+```
+
+Legacy shims under `src/middleware/` remain for backward compatibility and emit
+deprecation warnings — please migrate imports to the canonical `_common` paths.

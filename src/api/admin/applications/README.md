@@ -205,23 +205,22 @@ All controller methods use `express-async-handler` to catch async errors automat
 ## Usage Example
 
 ```javascript
-// Approve an application
-const response = await fetch('/api/admin/applications/507f1f77bcf86cd799439011/review', {
-  method: 'PATCH',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer <admin-token>'
-  },
-  body: JSON.stringify({ action: 'approve' })
-});
+// Approve an application (browser clients)
+// Use the central apiClient (axios) configured with `withCredentials: true` so the httpOnly `jwt` cookie is sent automatically.
+const response = await apiClient.patch('/api/admin/applications/507f1f77bcf86cd799439011/review', { action: 'approve' });
 
-// Get pending applications
-const applications = await fetch('/api/admin/applications', {
-  headers: {
-    'Authorization': 'Bearer <admin-token>'
-  }
-});
+// Get pending applications (browser)
+const applications = await apiClient.get('/api/admin/applications');
+
+// If you must use fetch(), ensure credentials are included so the cookie is sent:
+// fetch('/api/admin/applications', { credentials: 'include' })
 ```
+
+## Auth & Session (notes for implementers)
+
+- Browser sessions use an httpOnly cookie named `jwt` as the authoritative credential. Do not rely on client-side access to the token. Frontend code should use a central `apiClient` configured with `withCredentials: true` or `fetch(..., { credentials: 'include' })`.
+- Server middleware (canonical) lives under `src/api/_common/middleware/` (use `protect` and role-checking middleware from there). Legacy shims remain under `src/middleware/` and emit deprecation warnings.
+- This sub-domain should write audit events for approval/rejection actions using the `_common` audit service (e.g., `logAudit`) so admin actions are traceable.
 
 ## Testing Considerations
 

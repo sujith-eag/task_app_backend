@@ -6,9 +6,9 @@
 import express from 'express';
 import * as aiController from '../controllers/ai.controller.js';
 import * as validators from '../validators/ai.validator.js';
-import { protect } from '../../../middleware/auth.middleware.js';
-import { checkAIDailyLimit } from '../../../middleware/checkAIDailyLimit.js';
-import { validate } from '../../../middleware/validation.middleware.js';
+import { protect } from '../../_common/middleware/auth.middleware.js';
+import { checkAIDailyLimit } from '../../_common/middleware/aiLimit.middleware.js';
+import { validate } from '../../_common/middleware/validation.middleware.js';
 
 const router = express.Router();
 

@@ -2,6 +2,19 @@
 
 This directory contains shared middleware, utilities, and HTTP helpers used across all domain modules in the application.
 
+Subfolder READMEs
+------------------
+To improve discoverability each `_common` subfolder includes a focused `README.md` with examples and
+implementation notes. Prefer the subfolder READMEs for details and code samples:
+
+- `./middleware/README.md` — middleware usage, exports and migration notes
+- `./http/README.md` — docs for `asyncHandler.js` and `pagination.js`
+- `./services/README.md` — docs for `audit.service.js` and other services
+- `./socket/README.md` — docs for the socket session registry and usage caveats
+- `./utils/README.md` — docs for caching, sanitize and objectId helpers
+
+Open those files for targeted guidance when updating domain modules.
+
 ## Directory Structure
 
 ```
@@ -29,8 +42,17 @@ _common/
 
 ### Authentication
 
-- **`protect`**: Validates JWT from Authorization header or request body, attaches `req.user`
-- **`socketAuthMiddleware`**: Validates JWT for Socket.IO connections, attaches `socket.user`
+- **`protect`**: Cookie-first validation for the authoritative httpOnly JWT cookie named `jwt`. The middleware will:
+    - Prefer the `jwt` httpOnly cookie (sent via browsers when `withCredentials: true` is enabled on the client).
+    - Fallback to the Authorization Bearer header or `token` in the request body when a cookie is not present (for non-browser clients).
+    - Attach `req.user` when validation succeeds.
+
+- **`socketAuthMiddleware`**: Validates authentication for Socket.IO connections. It accepts a token from one of these locations (in order of preference):
+    - the `cookie` header (contains the `jwt` cookie),
+    - `handshake.auth.token`, or
+    - an Authorization header supplied in the handshake. On success it attaches `socket.user`.
+
+Note: The backend now issues an httpOnly cookie named `jwt` on successful login and relies on `GET /api/auth/me` as the canonical session check. Frontend code should use a central axios `apiClient` configured with `withCredentials: true` so the browser sends cookies automatically. For non-browser clients (mobile, scripts) Authorization header remains supported.
 
 ### Authorization (RBAC)
 

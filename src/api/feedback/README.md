@@ -127,7 +127,7 @@ src/api/feedback/
 
 ```javascript
 POST /api/feedback/student/submit
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 {
   "sessionId": "507f1f77bcf86cd799439011",
@@ -154,7 +154,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/feedback/student/pending
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Response
 {
@@ -183,7 +183,7 @@ Authorization: Bearer <token>
 
 ```javascript
 POST /api/feedback/teacher/sessions/507f1f77bcf86cd799439011/reflection
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 {
   "whatWentWell": "Students actively participated in discussions and grasped the concept of tree traversal quickly.",
@@ -207,7 +207,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/feedback/teacher/sessions/507f1f77bcf86cd799439011/summary
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Response
 {
@@ -250,7 +250,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/feedback/teacher/stats?subjectId=507f1f77bcf86cd799439011
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Response
 {
@@ -282,7 +282,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/feedback/teacher/reflections/pending?limit=10
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Response
 {
@@ -314,7 +314,7 @@ Authorization: Bearer <token>
 
 ```javascript
 GET /api/feedback/teacher/reflections/analytics?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
 // Response
 {

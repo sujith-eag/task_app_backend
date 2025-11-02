@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../../../middleware/auth.middleware.js';
+import { protect } from '../../_common/middleware/auth.middleware.js';
 import {
   softDeleteFile,
   bulkSoftDelete,

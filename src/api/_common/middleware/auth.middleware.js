@@ -27,10 +27,10 @@ export const protect = asyncHandler(async (req, res, next) => {
     token = req.body.token;
   }
 
-    if (!token) {
-        res.status(401);
-        throw new Error('Not authorized, no token provided');
-    }
+  if (!token) {
+    // Expected: unauthenticated request. Send 401 JSON and end response.
+    return res.status(401).json({ message: 'Not authorized, no token provided' });
+  }
 
     try {
         // Verify token
@@ -40,24 +40,22 @@ export const protect = asyncHandler(async (req, res, next) => {
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
-      res.status(401);
-      throw new Error('Not authorized, user not found');
+      return res.status(401).json({ message: 'Not authorized, user not found' });
     }
 
     // Basic ZTA check: password change invalidates existing tokens
     if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
-      res.status(401);
-      throw new Error('User password was recently changed. Please log in again.');
+      return res.status(401).json({ message: 'User password was recently changed. Please log in again.' });
     }
 
     req.user = user;
     // Verified, move to the next middleware
     next();
-    } catch (error) {
-        console.error('Auth error:', error.message);
-        res.status(401);
-        throw new Error('Not authorized, token failed or expired');
-    }
+  } catch (error) {
+    console.error('Auth error:', error?.message || error);
+    // Token verification failed or other expected auth error.
+    return res.status(401).json({ message: 'Not authorized, token failed or expired' });
+  }
 });
 
 
@@ -93,7 +91,20 @@ export const socketAuthMiddleware = async (socket, next) => {
     }
 
     if (!authToken) {
-      console.warn('Socket auth failed: no token', { socketId: socket.id, headers: socket.handshake?.headers });
+      // Detailed debug: include handshake.auth, headers and cookie snippet to help diagnose client handshake
+      const debugInfo = {
+        socketId: socket.id,
+        handshakeAuth: socket.handshake?.auth || null,
+        origin: socket.handshake?.headers?.origin || null,
+        cookieHeader: socket.handshake?.headers?.cookie ? socket.handshake.headers.cookie.slice(0, 200) : null,
+        headers: Object.keys(socket.handshake?.headers || {}).reduce((acc, k) => {
+          // include only a subset of headers to reduce noise
+          if (['authorization', 'cookie', 'origin', 'referer', 'user-agent', 'host'].includes(k)) acc[k] = socket.handshake.headers[k];
+          return acc;
+        }, {}),
+      };
+
+      console.warn('Socket auth failed: no token provided', debugInfo);
       return next(new Error('Authentication error: No token provided.'));
     }
 
@@ -102,12 +113,16 @@ export const socketAuthMiddleware = async (socket, next) => {
     try {
       decoded = jwt.verify(authToken, process.env.JWT_SECRET);
     } catch (err) {
-      console.warn(`Middleware FAIL: JWT verification failed. Reason: ${err.name}`);
+      // Provide richer logging to help debugging token failures
+      const errInfo = { name: err.name, message: err.message };
+      // Log a short token fingerprint (not the full token) to correlate client logs without exposing secrets
+      const tokenFingerprint = authToken ? `${authToken.slice(0, 8)}...${authToken.slice(-8)}` : null;
+      console.warn('Middleware FAIL: JWT verification failed', { socketId: socket.id, err: errInfo, tokenFingerprint });
       if (err.name === 'TokenExpiredError') {        
         console.warn('Socket auth failed: token expired', { socketId: socket.id });
         return next(new Error('Authentication error: Token expired.'));
       }
-      console.warn('Socket auth failed: invalid token', { socketId: socket.id, err });
+      console.warn('Socket auth failed: invalid token', { socketId: socket.id });
       return next(new Error('Authentication error.'));
     }
 
@@ -122,7 +137,7 @@ export const socketAuthMiddleware = async (socket, next) => {
 
     // Optional: check account state
     if (!user.isVerified || !user.isActive) {
-      console.warn('Socket auth failed: account inactive/banned', { userId: user._id });
+      console.warn('Socket auth failed: account inactive/banned', { userId: user._id, isVerified: user.isVerified, isActive: user.isActive });
       return next(new Error('Authentication error.'));
     }
 

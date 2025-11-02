@@ -1,30 +1,10 @@
-import asyncHandler from 'express-async-handler';
-import User from '../models/userModel.js';
+/*
+ * Legacy shim for AI daily limit middleware.
+ * Re-exports the centralized checkAIDailyLimit from src/api/_common/middleware/aiLimit.middleware.js
+ */
 
-const DAILY_LIMIT = parseInt(process.env.DAILY_AI_GENERATION_LIMIT, 10) || 10;
+import * as aiLimit from '../api/_common/middleware/aiLimit.middleware.js';
 
-export const checkAIDailyLimit = asyncHandler(async (req, res, next) => {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-        res.status(404);
-        throw new Error('User not found');
-    }
+console.warn('[DEPRECATION] src/middleware/checkAIDailyLimit.js is deprecated. Please import from src/api/_common/middleware/aiLimit.middleware.js instead.');
 
-    const oneDay = 24 * 60 * 60 * 1000; // 24 hours
-    const lastReset = user.aiGenerations?.lastReset || new Date(0);
-
-    // Reset if 24h passed since last reset
-    if (new Date() - lastReset > oneDay) {
-        user.aiGenerations.count = 0;
-        user.aiGenerations.lastReset = new Date();
-        await user.save();
-    }
-
-    // Check if the user has reached their daily limit
-    if (user.aiGenerations.count >= DAILY_LIMIT) {
-        res.status(429); // 429 Too Many Requests
-        throw new Error(`You have reached your daily limit of ${DAILY_LIMIT} AI generations.`);
-    }
-
-    next();
-});
+export const checkAIDailyLimit = aiLimit.checkAIDailyLimit;

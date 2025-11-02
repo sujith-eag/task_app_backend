@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import validate from '../../../middleware/validation.middleware.js';
+import validate from '../../_common/middleware/validation.middleware.js';
 
 const mongoId = Joi.string().pattern(/^[0-9a-fA-F]{24}$/).message('Invalid ID format');
 

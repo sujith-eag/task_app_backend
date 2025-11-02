@@ -307,7 +307,7 @@ Handles subtask operations:
 
 ```javascript
 POST /api/tasks
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -323,14 +323,14 @@ Content-Type: application/json
 
 ```javascript
 GET /api/tasks?status=In Progress&priority=High&sortBy=dueDate:asc
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ### Creating Multiple Tasks (AI-Generated)
 
 ```javascript
 POST /api/tasks/bulk
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -357,7 +357,7 @@ Content-Type: application/json
 ```javascript
 // Add subtask
 POST /api/tasks/123/subtasks
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -366,7 +366,7 @@ Content-Type: application/json
 
 // Mark subtask as complete
 PUT /api/tasks/123/subtasks/456
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
 
 {
@@ -375,7 +375,7 @@ Content-Type: application/json
 
 // Get completion stats
 GET /api/tasks/123/subtasks/stats
-Authorization: Bearer <token>
+Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 ```
 
 ## Integration Notes

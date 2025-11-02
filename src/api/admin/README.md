@@ -398,6 +398,17 @@ src/api/admin/
 
 ---
 
+## Migration note (shared helpers & middleware)
+
+Shared middleware and utilities (auth, RBAC, validation, http helpers, small services)
+are centralized under `src/api/_common/`. When adding or refactoring routes/controllers prefer
+imports from the `_common` folder. Legacy `src/middleware/` files are compatibility shims that
+emit deprecation warnings — migrate imports to reduce noise and future-proof the codebase.
+
+See `src/api/_common/README.md` and the subfolder READMEs for usage examples.
+
+---
+
 **Last Updated**: October 31, 2025  
 **Architecture Version**: Phase 0  
 **Status**: ✅ **All 5 sub-domains implemented and integrated**

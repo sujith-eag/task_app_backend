@@ -2,7 +2,7 @@
  * AI Validators (Joi)
  */
 import Joi from 'joi';
-import validate from '../../../middleware/validation.middleware.js';
+import validate from '../../_common/middleware/validation.middleware.js';
 
 const MAX_PROMPT_LENGTH = 1000;
 const MAX_SESSION_ID_LENGTH = 100;
