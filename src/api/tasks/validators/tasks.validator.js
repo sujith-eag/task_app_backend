@@ -11,7 +11,7 @@ const tag = Joi.string().trim().min(1).max(50);
 const baseTaskFields = {
   title: Joi.string().trim().min(1).max(200),
   description: Joi.string().trim().max(2000).allow('', null),
-  dueDate: Joi.date().iso(),
+  dueDate: Joi.date().iso().allow(null),
   priority: Joi.string().valid('Low', 'Medium', 'High'),
   status: Joi.string().valid('To Do', 'In Progress', 'Done'),
   tags: Joi.array().items(tag)

@@ -8,7 +8,7 @@ import * as aiController from '../controllers/ai.controller.js';
 import * as validators from '../validators/ai.validator.js';
 import { protect } from '../../_common/middleware/auth.middleware.js';
 import { checkAIDailyLimit } from '../../_common/middleware/aiLimit.middleware.js';
-import { validate } from '../../_common/middleware/validation.middleware.js';
+// validators already include the validation middleware; no standalone `validate` needed
 
 const router = express.Router();
 
@@ -28,7 +28,6 @@ router.post(
     '/tasks/preview',
     checkAIDailyLimit,
     validators.validatePlanPreview,
-    validate,
     aiController.getAIPlanPreview
 );
 
@@ -41,7 +40,6 @@ router.post(
     '/tasks/generate',
     checkAIDailyLimit,
     validators.validateTaskGeneration,
-    validate,
     aiController.generateTasksWithAI
 );
 
@@ -71,7 +69,6 @@ router.get(
 router.get(
     '/prompts/history',
     validators.validatePromptHistory,
-    validate,
     aiController.getPromptHistory
 );
 
@@ -93,7 +90,6 @@ router.get(
 router.delete(
     '/prompts/history',
     validators.validateClearPrompts,
-    validate,
     aiController.clearOldPrompts
 );
 

@@ -39,6 +39,14 @@ export const getTask = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const createTask = asyncHandler(async (req, res) => {
+    // Debug: log request body in non-production to aid diagnosing 400s
+    try {
+        if (process.env.NODE_ENV !== 'production') {
+            console.debug('[createTask] user:', req.user?.id, 'body:', JSON.stringify(req.body));
+        }
+    } catch (e) {
+        /* ignore logging errors */
+    }
     const task = await tasksService.createTask(req.user.id, req.body);
     res.status(201).json(task);
 });

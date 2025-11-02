@@ -8,7 +8,7 @@ import * as tasksController from '../controllers/tasks.controller.js';
 import * as subtasksController from '../controllers/subtasks.controller.js';
 import * as validators from '../validators/tasks.validator.js';
 import { protect } from '../../_common/middleware/auth.middleware.js';
-import { validate } from '../../_common/middleware/validation.middleware.js';
+// validators include validation middleware; standalone `validate` import removed
 
 const router = express.Router();
 
@@ -28,7 +28,6 @@ router.use(protect);
 router.get(
     '/',
     validators.validateTaskQuery,
-    validate,
     tasksController.getTasks
 );
 
@@ -47,7 +46,6 @@ router.get('/stats', tasksController.getTaskStats);
 router.post(
     '/',
     validators.validateCreateTask,
-    validate,
     tasksController.createTask
 );
 
@@ -59,7 +57,6 @@ router.post(
 router.post(
     '/bulk',
     validators.validateBulkCreate,
-    validate,
     tasksController.createBulkTasks
 );
 
@@ -71,7 +68,6 @@ router.post(
 router.get(
     '/:id',
     validators.validateTaskId,
-    validate,
     tasksController.getTask
 );
 
@@ -83,7 +79,6 @@ router.get(
 router.put(
     '/:id',
     validators.validateUpdateTask,
-    validate,
     tasksController.updateTask
 );
 
@@ -95,7 +90,6 @@ router.put(
 router.delete(
     '/:id',
     validators.validateTaskId,
-    validate,
     tasksController.deleteTask
 );
 
@@ -111,7 +105,6 @@ router.delete(
 router.get(
     '/:id/subtasks/stats',
     validators.validateTaskId,
-    validate,
     subtasksController.getSubTaskStats
 );
 
@@ -123,7 +116,6 @@ router.get(
 router.post(
     '/:id/subtasks',
     validators.validateCreateSubTask,
-    validate,
     subtasksController.addSubTask
 );
 
@@ -135,7 +127,6 @@ router.post(
 router.put(
     '/:id/subtasks/:subTaskId',
     validators.validateUpdateSubTask,
-    validate,
     subtasksController.updateSubTask
 );
 
@@ -147,7 +138,6 @@ router.put(
 router.delete(
     '/:id/subtasks/:subTaskId',
     validators.validateSubTaskIds,
-    validate,
     subtasksController.deleteSubTask
 );
 

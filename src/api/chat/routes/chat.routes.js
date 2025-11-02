@@ -8,7 +8,7 @@ import * as conversationsController from '../controllers/conversations.controlle
 import * as messagesController from '../controllers/messages.controller.js';
 import * as validators from '../validators/chat.validator.js';
 import { protect } from '../../_common/middleware/auth.middleware.js';
-import { validate } from '../../_common/middleware/validation.middleware.js';
+// validators already include the validation middleware; no standalone `validate` needed
 
 const router = express.Router();
 
@@ -37,7 +37,6 @@ router.get(
 router.post(
     '/conversations',
     validators.validateCreateConversation,
-    validate,
     conversationsController.createOrGetConversation
 );
 
@@ -49,7 +48,6 @@ router.post(
 router.get(
     '/conversations/:id',
     validators.validateConversationId,
-    validate,
     conversationsController.getConversation
 );
 
@@ -61,7 +59,6 @@ router.get(
 router.delete(
     '/conversations/:id',
     validators.validateConversationId,
-    validate,
     conversationsController.deleteConversation
 );
 
@@ -87,7 +84,6 @@ router.get(
 router.get(
     '/conversations/:id/messages',
     validators.validateMessagePagination,
-    validate,
     messagesController.getMessages
 );
 
@@ -99,7 +95,6 @@ router.get(
 router.post(
     '/conversations/:id/messages',
     validators.validateCreateMessage,
-    validate,
     messagesController.createMessage
 );
 
@@ -111,7 +106,6 @@ router.post(
 router.get(
     '/conversations/:id/messages/search',
     validators.validateMessageSearch,
-    validate,
     messagesController.searchMessages
 );
 
@@ -123,7 +117,6 @@ router.get(
 router.get(
     '/conversations/:id/messages/unread',
     validators.validateConversationId,
-    validate,
     messagesController.getUnreadCount
 );
 
@@ -135,7 +128,6 @@ router.get(
 router.put(
     '/conversations/:id/messages/read',
     validators.validateConversationId,
-    validate,
     messagesController.markAsRead
 );
 
@@ -147,7 +139,6 @@ router.put(
 router.delete(
     '/messages/:id',
     validators.validateMessageId,
-    validate,
     messagesController.deleteMessage
 );
 
