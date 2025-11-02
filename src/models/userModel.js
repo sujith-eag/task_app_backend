@@ -127,24 +127,18 @@ userSchema.index({ roles: 1 }); // Index the roles array
 
 
 // --- Middleware ---
-// Back-compat: if roles[] is empty, seed it from legacy role on save
-userSchema.pre('save', function syncRolesFromRole(next) {
-  // Check if 'role' field exists (from legacy) and roles is empty
-  if (this.isNew && this.get('role') && (!this.roles || this.roles.length === 0)) {
-    this.roles = [this.get('role')];
-    this.set('role', undefined); // Unset the legacy field
-  }
-  
+// Pre-save hooks: bookkeeping only (no migrations inside model)
+userSchema.pre('save', function preSaveBookkeeping(next) {
   // Track password changes
   if (this.isModified('password')) {
     this.passwordChangedAt = new Date();
   }
-  
+
   // Track role changes
   if (this.isModified('roles')) {
     this.roleChangedAt = new Date();
   }
-  
+
   next();
 });
 

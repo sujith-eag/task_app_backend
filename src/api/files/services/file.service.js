@@ -206,13 +206,24 @@ export const getFileDownloadUrlService = async (fileId, userId) => {
     throw new Error('File not found.');
   }
 
+  // Helper to extract string id from ObjectId or populated document
+  const extractId = (val) => {
+    if (!val) return null;
+    if (typeof val === 'string') return val;
+    if (val._id) return String(val._id);
+    return String(val);
+  };
+
   // Check permission
-  const isOwner = file.user.toString() === userId;
-  const isSharedWith = file.sharedWith.some(
-    (share) =>
-      share.user.toString() === userId &&
-      (!share.expiresAt || share.expiresAt > new Date())
-  );
+  // Normalize comparison by stringifying the incoming userId (may be ObjectId)
+  const normalizedUserId = String(userId);
+  const ownerId = extractId(file.user);
+  const isOwner = ownerId === normalizedUserId;
+  const isSharedWith = file.sharedWith.some((share) => {
+    const sharedUserId = extractId(share.user);
+    const notExpired = !share.expiresAt || share.expiresAt > new Date();
+    return sharedUserId === normalizedUserId && notExpired;
+  });
 
   if (!isOwner && !isSharedWith) {
     const error = new Error('You do not have permission to access this file.');

@@ -229,6 +229,25 @@ export const shareFileWithUserService = async (
     createdBy: userId,
   });
 
+  // Also sync the embedded `sharedWith` array on the File document so
+  // file listing endpoints that rely on the File model reflect the share.
+  try {
+    const fileDoc = await File.findById(fileId);
+    if (fileDoc) {
+      const alreadyShared = fileDoc.sharedWith?.some?.(
+        (s) => String(s.user) === String(userIdToShareWith)
+      );
+      if (!alreadyShared) {
+        fileDoc.sharedWith = fileDoc.sharedWith || [];
+        fileDoc.sharedWith.push({ user: userIdToShareWith, expiresAt: expiresAt || null });
+        await fileDoc.save();
+      }
+    }
+  } catch (err) {
+    // Log but don't fail the share operation if embedded sync fails
+    console.error('Failed to sync File.sharedWith after creating FileShare:', err);
+  }
+
   // Return file with populated shares
   const updatedFile = await File.findById(fileId)
     .populate('user', 'name avatar');
@@ -236,6 +255,7 @@ export const shareFileWithUserService = async (
   const shares = await FileShare.findByFile(fileId);
 
   return { file: updatedFile, shares };
+
 };
 
 /**
@@ -285,6 +305,16 @@ export const manageShareAccessService = async (
     sharedWith: targetUserId,
   });
 
+  // Also remove from File.sharedWith embedded array so file listings update
+  try {
+    await File.updateOne(
+      { _id: fileId },
+      { $pull: { sharedWith: { user: targetUserId } } }
+    );
+  } catch (err) {
+    console.error('Failed to remove embedded sharedWith entry after deleting FileShare:', err);
+  }
+
   // Return updated file with shares
   const updatedFile = await File.findById(fileId)
     .populate('user', 'name avatar');
@@ -322,6 +352,16 @@ export const bulkRemoveShareAccessService = async (fileIds, userId) => {
     shareType: 'direct',
     sharedWith: userId,
   });
+
+  // Remove embedded sharedWith entries from the File documents as well
+  try {
+    await File.updateMany(
+      { _id: { $in: fileIds } },
+      { $pull: { sharedWith: { user: userId } } }
+    );
+  } catch (err) {
+    console.error('Failed to sync embedded sharedWith entries during bulk remove:', err);
+  }
 
   return {
     message: `${result.deletedCount} file(s) successfully removed from your shared list.`,

@@ -25,17 +25,8 @@ const server = http.createServer(app); // http server from the app
 
 // Connect DB with error handling
 connectDB()
-  .then( async () => {
+  .then(() => {
     console.log('MongoDB connected');
-    // Run one-time migrations (safe / idempotent)
-    try {
-      // Import here so module resolution happens after DB connection
-      const { migrateUserRoles } = await import('./src/migrations/migrateRoles.js');
-      await migrateUserRoles();
-    } catch (e) {
-      console.error('Error running migrations:', e);
-      // Do not exit the process on migration failure; log and continue
-    }
   })
   .catch((err)=>{
     console.error('DB connection error:', err);

@@ -1,6 +1,14 @@
 import File from '../../../models/fileModel.js';
 import FileShare from '../../../models/fileshareModel.js';
 
+// Helper to extract string id from ObjectId or populated document
+const extractId = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (val._id) return String(val._id);
+  return String(val);
+};
+
 // ============================================================================
 // Authorization Policies
 // ============================================================================
@@ -24,8 +32,9 @@ export const isFileOwner = async (req, res, next) => {
       req.file = file;
     }
 
-    // Check ownership
-    if (file.uploadedBy.toString() !== userId.toString()) {
+    // Check ownership (file model uses `user` as owner)
+    const ownerId = extractId(file.user);
+    if (!ownerId || ownerId !== String(userId)) {
       return res
         .status(403)
         .json({ message: 'Access denied: You are not the file owner' });
@@ -57,8 +66,9 @@ export const canShareFile = async (req, res, next) => {
       req.file = file;
     }
 
-    // Only owner can share files
-    if (file.uploadedBy.toString() !== userId.toString()) {
+    // Only owner can share files (file model uses `user` as owner)
+    const ownerId2 = extractId(file.user);
+    if (!ownerId2 || ownerId2 !== String(userId)) {
       return res
         .status(403)
         .json({ message: 'Access denied: Only file owner can share files' });
@@ -98,7 +108,8 @@ export const canAccessPublicShare = async (req, res, next) => {
     }
 
     // Only file owner can manage public shares
-    if (file.uploadedBy.toString() !== userId.toString()) {
+    const ownerId3 = extractId(file.user);
+    if (!ownerId3 || ownerId3 !== String(userId)) {
       return res.status(403).json({
         message: 'Access denied: Only file owner can manage public shares',
       });
@@ -131,7 +142,7 @@ export const validateSharePermissions = async (req, res, next) => {
       req.file = file;
     }
 
-    const isOwner = file.uploadedBy.toString() === userId.toString();
+  const isOwner = extractId(file.user) === String(userId);
 
     // If removing self, always allowed (if shared with user)
     if (
@@ -182,7 +193,7 @@ export const canViewFileShares = async (req, res, next) => {
       req.file = file;
     }
 
-    const isOwner = file.uploadedBy.toString() === userId.toString();
+  const isOwner = extractId(file.user) === String(userId);
 
     // Owner can always view
     if (isOwner) {

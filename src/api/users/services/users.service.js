@@ -20,6 +20,15 @@ export const getUserProfile = async (userId) => {
         throw new Error('User not found');
     }
     
+    // Sanitize sessions to avoid leaking tokenId
+    const sessions = (user.sessions || []).map(s => ({
+        deviceId: s.deviceId,
+        ipAddress: s.ipAddress,
+        userAgent: s.userAgent,
+        lastUsedAt: s.lastUsedAt,
+        createdAt: s.createdAt,
+    }));
+
     return {
         id: user._id,
         name: user.name,
@@ -29,6 +38,15 @@ export const getUserProfile = async (userId) => {
         bio: user.bio,
         preferences: user.preferences,
         studentDetails: user.studentDetails,
+        teacherDetails: user.teacherDetails,
+        isActive: user.isActive,
+        isVerified: user.isVerified,
+        lastLoginAt: user.lastLoginAt,
+        lastIp: user.lastIp,
+        aiGenerations: user.aiGenerations,
+        roleChangedAt: user.roleChangedAt,
+        passwordChangedAt: user.passwordChangedAt,
+        sessions,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
     };
