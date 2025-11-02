@@ -70,18 +70,22 @@ export const getDownloadLink = asyncHandler(async (req, res) => {
 export const bulkDownloadFiles = asyncHandler(async (req, res) => {
   let fileIds;
 
-  // Parse fileIds from JSON string
-  try {
-    fileIds = JSON.parse(req.body.fileIds);
-  } catch (e) {
+  // Accept either an actual array (application/json) or a JSON-stringified value (form POST)
+  if (Array.isArray(req.body.fileIds)) {
+    fileIds = req.body.fileIds;
+  } else if (typeof req.body.fileIds === 'string') {
+    try {
+      fileIds = JSON.parse(req.body.fileIds);
+    } catch (e) {
+      res.status(400);
+      throw new Error('Invalid format for file IDs.');
+    }
+  } else {
     res.status(400);
-    throw new Error('Invalid format for file IDs.');
+    throw new Error('fileIds is required');
   }
 
-  const accessibleFiles = await fileService.getBulkDownloadFilesService(
-    fileIds,
-    req.user._id
-  );
+  const accessibleFiles = await fileService.getBulkDownloadFilesService(fileIds, req.user._id);
 
   // Stream zip file
   const archiver = (await import('archiver')).default;

@@ -359,12 +359,14 @@ Response: 200 OK
 ```http
 POST /api/files/bulk-download
 Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
-Content-Type: application/json
+Content-Type: application/json (preferred) or application/x-www-form-urlencoded (legacy form POST)
 
-Body:
+Body (JSON):
 {
   "fileIds": ["id1", "id2", "id3"]
 }
+
+Notes: The server accepts either a JSON array in `fileIds` (when calling with `application/json`) or a JSON-stringified `fileIds` value (when submitted via a hidden HTML form). This allows both modern XHR/blob downloads and legacy form-based downloads to work with the same endpoint.
 
 Response: 200 OK (application/zip)
 Binary ZIP file stream
