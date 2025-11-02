@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import File from '../../../models/fileModel.js';
 import FileShare from '../../../models/fileshareModel.js';
 import { deleteFile as deleteFromS3 } from '../../../services/s3.service.js';
@@ -74,16 +75,16 @@ export const softDeleteFileService = async (fileId, userId) => {
     ).lean();
     const allFileIds = [fileId, ...descendantIds.map(d => d._id)];
     
-    // Deactivate public shares
-    await FileShare.updateMany(
-      { file: { $in: allFileIds }, shareType: 'public' },
-      { $set: { isActive: false } }
+    // Deactivate public shares on the File documents (publicShare lives on File)
+    await File.updateMany(
+      { _id: { $in: allFileIds } },
+      { $set: { 'publicShare.isActive': false } }
     );
   } else {
-    // Deactivate public shares for single file
-    await FileShare.updateMany(
-      { file: fileId, shareType: 'public' },
-      { $set: { isActive: false } }
+    // Deactivate public share for single file
+    await File.updateOne(
+      { _id: fileId },
+      { $set: { 'publicShare.isActive': false } }
     );
   }
 
@@ -161,10 +162,10 @@ export const bulkSoftDeleteService = async (fileIds, userId) => {
     }
   }
 
-  // Deactivate all shares
-  await FileShare.updateMany(
-    { file: { $in: fileIds }, shareType: 'public' },
-    { $set: { isActive: false } }
+  // Deactivate public shares on the File documents
+  await File.updateMany(
+    { _id: { $in: fileIds } },
+    { $set: { 'publicShare.isActive': false } }
   );
 
   return {
@@ -399,9 +400,9 @@ export const purgeFileService = async (fileId, userId) => {
       { _id: 1 }
     ).lean();
     const allFileIds = [fileId, ...descendantIds.map(d => d._id)];
-    await FileShare.deleteMany({ file: { $in: allFileIds } });
+  await FileShare.deleteMany({ fileId: { $in: allFileIds } });
   } else {
-    await FileShare.deleteMany({ file: fileId });
+  await FileShare.deleteMany({ fileId: fileId });
   }
 
   return {
@@ -475,7 +476,7 @@ export const bulkPurgeService = async (fileIds, userId) => {
   }
 
   // Delete all associated shares
-  await FileShare.deleteMany({ file: { $in: fileIds } });
+  await FileShare.deleteMany({ fileId: { $in: fileIds } });
 
   return {
     message: `${totalPurged} items permanently deleted`,
@@ -520,7 +521,7 @@ export const emptyTrashService = async (userId) => {
 
   // Delete all associated shares
   await FileShare.deleteMany({
-    file: { $in: deletedFileIds.map(f => f._id) }
+    fileId: { $in: deletedFileIds.map(f => f._id) }
   });
 
   return {
@@ -644,7 +645,7 @@ export const cleanExpiredTrashService = async (retentionDays = 30) => {
 
   // Delete associated shares
   await FileShare.deleteMany({
-    file: { $in: expiredFileIds.map(f => f._id) }
+    fileId: { $in: expiredFileIds.map(f => f._id) }
   });
 
   return {
@@ -702,7 +703,7 @@ export const adminHardDeleteService = async (fileId, adminUserId) => {
   }
 
   // Delete shares
-  await FileShare.deleteMany({ file: fileId });
+  await FileShare.deleteMany({ fileId: fileId });
 
   return {
     message: `Admin hard delete: ${deletedCount} items permanently removed`,
@@ -710,4 +711,21 @@ export const adminHardDeleteService = async (fileId, adminUserId) => {
     s3KeysDeleted: s3Keys.length,
     performedBy: adminUserId
   };
+};
+
+export default {
+  // Soft-delete / purge / restore
+  softDeleteFileService,
+  bulkSoftDeleteService,
+  restoreFileService,
+  bulkRestoreService,
+  purgeFileService,
+  bulkPurgeService,
+  emptyTrashService,
+  // Listing / stats / maintenance
+  listTrashService,
+  getTrashStatsService,
+  cleanExpiredTrashService,
+  // Admin
+  adminHardDeleteService
 };

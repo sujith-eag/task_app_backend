@@ -7,6 +7,20 @@ Key facts
 - Direct user shares are small mapping documents in `src/models/fileshareModel.js` with fields: `fileId` (ref `File`), `userId` (ref `User`), and optional `expiresAt`.
 - `FileShare` indexes: `{ fileId: 1, userId: 1 }` (unique) and `{ userId: 1, fileId: 1 }` for lookups.
 
+Recent changes (2025-11-02)
+- Implementation status: Stage 3 (Shares) implemented using the two-model blueprint: public shares on `File.publicShare` and direct user shares in `FileShare` collection.
+- `shares.service.js` implements public-share flows (`createPublicShareService`, `revokePublicShareService`, `getPublicDownloadLinkService`) which operate on the `File.publicShare` subdocument.
+- `shares.service.js` implements direct-share flows (`shareFileWithUserService`, `manageShareAccessService`, `bulkRemoveShareAccessService`) which operate solely on `FileShare` documents.
+- `fileshareModel.js` now includes small static helpers used by policies/services: `userHasAccess`, `findByFile`, `getFilesSharedWithUser`, and `cleanExpired`.
+- `trash.service.js` was corrected to deactivate public shares by updating `File.publicShare` (no public-share handling in `FileShare`) and to use the correct `fileId` field when removing `FileShare` docs.
+- Routes for authenticated (`/api/shares`) and public (`/api/public`) endpoints are mounted in `src/routes/index.js` (see `mountRoutes`).
+
+Quick verification tips
+- Quick module import check (no DB required):
+  - node -e "import('./src/api/shares/services/shares.service.js').then(()=>console.log('SHARES SERVICE OK')).catch(e=>console.error(e))"
+- To run the app you need runtime env values (MONGO_URI, AWS creds). Starting the app without them will trigger a DB connect error during import.
+- Recommended next steps: add unit tests for public-share and direct-share flows and a migration (dry-run) to convert any legacy `File.sharedWith` arrays into `FileShare` documents if your DB has legacy data.
+
 Where to look (exact paths)
 - Models: `src/models/fileModel.js`, `src/models/fileshareModel.js`
 - Controllers: `src/api/shares/controllers/*.js` (`shares.controller.js`, `public.controller.js`)

@@ -1,5 +1,9 @@
 import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as fileService from '../services/file.service.js';
+import {
+  softDeleteFileService,
+  bulkSoftDeleteService
+} from '../../trash/services/trash.service.js';
 
 // ============================================================================
 // File Upload Controllers
@@ -195,11 +199,8 @@ export const downloadFolderAsZip = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const deleteFile = asyncHandler(async (req, res) => {
-  const result = await fileService.deleteFileService(
-    req.params.id,
-    req.user._id
-  );
-
+  // Rewired to use Trash domain (soft-delete)
+  const result = await softDeleteFileService(req.params.id, req.user._id);
   res.status(200).json(result);
 });
 
@@ -211,10 +212,7 @@ export const deleteFile = asyncHandler(async (req, res) => {
 export const bulkDeleteFiles = asyncHandler(async (req, res) => {
   const { fileIds } = req.body;
 
-  const result = await fileService.bulkDeleteFilesService(
-    fileIds,
-    req.user._id
-  );
-
+  // Rewired to use Trash domain (bulk soft-delete)
+  const result = await bulkSoftDeleteService(fileIds, req.user._id);
   res.status(200).json(result);
 });

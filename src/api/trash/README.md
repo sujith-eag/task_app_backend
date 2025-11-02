@@ -105,6 +105,8 @@ When files are soft-deleted:
 DELETE /api/trash/soft-delete/:fileId
 Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 
+Middleware chain: `protect` -> `loadFile` -> `isFileOwner` -> `isNotInTrash`
+
 Response 200:
 {
   "message": "File moved to trash",
@@ -124,6 +126,8 @@ Response 200:
 POST /api/trash/soft-delete/bulk
 Auth: Browser: httpOnly cookie `jwt` (use a central apiClient with credentials). For non-browser/testing, send `Cookie: jwt=YOUR_TOKEN`.
 Content-Type: application/json
+
+Middleware chain: `protect` -> `validate(bulkOperationSchema)` -> `bulkOperationLimit`
 
 {
   "fileIds": ["fileId1", "fileId2", "fileId3"]
@@ -192,6 +196,8 @@ Response 200:
   "purgedCount": 1,
   "s3KeysDeleted": 1
 }
+
+Middleware chain: `protect` -> `loadFile` -> `isFileOwner` -> `isInTrash`
 ```
 
 #### Bulk Purge
@@ -211,6 +217,8 @@ Response 200:
   "purgedCount": 25,
   "s3KeysDeleted": 25
 }
+
+Middleware chain: `protect` -> `validate(bulkOperationSchema)` -> `bulkOperationLimit`
 ```
 
 #### Empty Trash
@@ -225,6 +233,8 @@ Response 200:
   "purgedCount": 42,
   "s3KeysDeleted": 42
 }
+
+Middleware: `protect` (only authenticated users can empty their own trash)
 ```
 
 ### Query Endpoints

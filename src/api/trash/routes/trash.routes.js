@@ -1,173 +1,89 @@
 import express from 'express';
+import * as trashController from '../controllers/trash.controller.js';
 import { protect } from '../../_common/middleware/auth.middleware.js';
 import {
-  softDeleteFile,
-  bulkSoftDelete,
-  restoreFile,
-  bulkRestore,
-  purgeFile,
-  bulkPurge,
-  emptyTrash,
-  listTrash,
-  getTrashStats,
-  cleanExpiredTrash,
-  adminHardDelete
-} from '../controllers/trash.controller.js';
-import {
-  bulkOperationSchema,
-  cleanupSchema,
-  validate
-} from '../validators/trash.validators.js';
-import {
-  loadFile,
-  isFileOwner,
-  isInTrash,
-  isNotInTrash,
-  isAdmin,
-  validateParentForRestore,
-  bulkOperationLimit,
-  validateCleanup
+	loadFile,
+	isFileOwner,
+	isNotInTrash,
+	isInTrash,
+	bulkOperationLimit
 } from '../policies/trash.policies.js';
+import { validate, bulkOperationSchema } from '../validators/trash.validators.js';
 
 const router = express.Router();
 
-// ============================================================================
-// Soft Delete Routes
-// ============================================================================
+/**
+ * GET /api/trash
+ * List trashed items for the authenticated user
+ */
+router.get('/', protect, trashController.listTrash);
 
 /**
+ * GET /api/trash/stats
+ * Return trash stats (count, totalSize)
+ */
+router.get('/stats', protect, trashController.getTrashStats);
+
+// ---------------------------------------------------------------------------
+// Soft-delete endpoints (Phase 2.2)
+// ---------------------------------------------------------------------------
+/**
  * DELETE /api/trash/soft-delete/:fileId
- * Move file/folder to trash (soft delete)
+ * Middleware: protect -> loadFile -> isFileOwner -> isNotInTrash
  */
 router.delete(
-  '/soft-delete/:fileId',
-  protect,
-  loadFile,
-  isFileOwner,
-  isNotInTrash,
-  softDeleteFile
+	'/soft-delete/:fileId',
+	protect,
+	loadFile,
+	isFileOwner,
+	isNotInTrash,
+	trashController.softDeleteFile
 );
 
 /**
  * POST /api/trash/soft-delete/bulk
- * Bulk move files/folders to trash
+ * Middleware: protect -> validate(bulkOperationSchema) -> bulkOperationLimit
  */
 router.post(
-  '/soft-delete/bulk',
-  protect,
-  validate(bulkOperationSchema, 'body'),
-  bulkOperationLimit,
-  bulkSoftDelete
+	'/soft-delete/bulk',
+	protect,
+	validate(bulkOperationSchema, 'body'),
+	bulkOperationLimit,
+	trashController.bulkSoftDelete
 );
 
-// ============================================================================
-// Restore Routes
-// ============================================================================
-
-/**
- * POST /api/trash/restore/:fileId
- * Restore file/folder from trash
- */
-router.post(
-  '/restore/:fileId',
-  protect,
-  loadFile,
-  isFileOwner,
-  isInTrash,
-  validateParentForRestore,
-  restoreFile
-);
-
-/**
- * POST /api/trash/restore/bulk
- * Bulk restore files/folders from trash
- */
-router.post(
-  '/restore/bulk',
-  protect,
-  validate(bulkOperationSchema, 'body'),
-  bulkOperationLimit,
-  bulkRestore
-);
-
-// ============================================================================
-// Permanent Delete (Purge) Routes
-// ============================================================================
-
+// ---------------------------------------------------------------------------
+// Purge (permanent delete) endpoints (Phase 2.4)
+// ---------------------------------------------------------------------------
 /**
  * DELETE /api/trash/purge/:fileId
- * Permanently delete file/folder (must be in trash)
+ * Middleware: protect -> loadFile -> isFileOwner -> isInTrash
  */
 router.delete(
-  '/purge/:fileId',
-  protect,
-  loadFile,
-  isFileOwner,
-  isInTrash,
-  purgeFile
+	'/purge/:fileId',
+	protect,
+	loadFile,
+	isFileOwner,
+	isInTrash,
+	trashController.purgeFile
 );
 
 /**
  * POST /api/trash/purge/bulk
- * Bulk permanently delete files/folders
+ * Middleware: protect -> validate(bulkOperationSchema) -> bulkOperationLimit
  */
 router.post(
-  '/purge/bulk',
-  protect,
-  validate(bulkOperationSchema, 'body'),
-  bulkOperationLimit,
-  bulkPurge
+	'/purge/bulk',
+	protect,
+	validate(bulkOperationSchema, 'body'),
+	bulkOperationLimit,
+	trashController.bulkPurge
 );
 
 /**
  * DELETE /api/trash/empty
- * Empty entire trash (permanent delete all)
+ * Middleware: protect
  */
-router.delete('/empty', protect, emptyTrash);
-
-// ============================================================================
-// Query/List Routes
-// ============================================================================
-
-/**
- * GET /api/trash
- * List all items in trash
- */
-router.get('/', protect, listTrash);
-
-/**
- * GET /api/trash/stats
- * Get trash statistics
- */
-router.get('/stats', protect, getTrashStats);
-
-// ============================================================================
-// Admin/Maintenance Routes
-// ============================================================================
-
-/**
- * POST /api/trash/cleanup
- * Clean up old trash items (admin or scheduled job)
- */
-router.post(
-  '/cleanup',
-  protect,
-  isAdmin,
-  validate(cleanupSchema, 'body'),
-  validateCleanup,
-  cleanExpiredTrash
-);
-
-/**
- * DELETE /api/trash/admin/hard-delete/:fileId
- * Admin hard delete (bypass soft-delete)
- */
-router.delete(
-  '/admin/hard-delete/:fileId',
-  protect,
-  isAdmin,
-  loadFile,
-  adminHardDelete
-);
+router.delete('/empty', protect, trashController.emptyTrash);
 
 export default router;

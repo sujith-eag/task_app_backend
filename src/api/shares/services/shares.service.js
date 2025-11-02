@@ -16,11 +16,9 @@ import User from '../../../models/userModel.js';
  * @returns {Promise<Object>} Public share details
  */
 export const createPublicShareService = async (fileId, userId, duration) => {
-  // Verify file ownership
+  // Implement public share as a subdocument on the File model
   const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) {
-    throw new Error('File not found or you do not have permission.');
-  }
+  if (!file) throw new Error('File not found or you do not have permission.');
 
   // Calculate expiration
   let expiresAt = new Date();
@@ -38,37 +36,28 @@ export const createPublicShareService = async (fileId, userId, duration) => {
       throw new Error('Invalid duration specified.');
   }
 
-  // Check if public share already exists
-  let publicShare = await FileShare.findOne({
-    file: fileId,
-    shareType: 'public',
-  });
-
-  if (publicShare) {
-    // Update existing share
-    publicShare.isActive = true;
-    publicShare.expiresAt = expiresAt;
-    await publicShare.save();
-  } else {
-    // Create new public share
-    const code = crypto.randomBytes(4).toString('hex'); // 8-character hex
-
-    publicShare = await FileShare.create({
-      file: fileId,
-      owner: userId,
-      shareType: 'public',
-      publicCode: code,
+  // Generate a unique code and write to the File.publicShare subdocument
+  let code;
+  for (let i = 0; i < 5; i++) {
+    code = crypto.randomBytes(4).toString('hex');
+    // attempt to assign; uniqueness enforced by file schema index
+    file.publicShare = {
+      code,
       isActive: true,
       expiresAt,
-      createdBy: userId,
-    });
+    };
+    file.lastAccessedAt = null;
+    try {
+      await file.save();
+      break;
+    } catch (err) {
+      // If duplicate key on code, retry
+      if (err.code === 11000 && i < 4) continue;
+      throw err;
+    }
   }
 
-  return {
-    code: publicShare.publicCode,
-    isActive: publicShare.isActive,
-    expiresAt: publicShare.expiresAt,
-  };
+  return { code: file.publicShare.code, isActive: file.publicShare.isActive, expiresAt: file.publicShare.expiresAt };
 };
 
 /**
@@ -79,31 +68,17 @@ export const createPublicShareService = async (fileId, userId, duration) => {
  * @returns {Promise<Object>} Success message
  */
 export const revokePublicShareService = async (fileId, userId) => {
-  // Verify file ownership
   const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) {
-    throw new Error('File not found or you do not have permission.');
-  }
+  if (!file) throw new Error('File not found or you do not have permission.');
 
-  // Find and deactivate public share
-  const publicShare = await FileShare.findOne({
-    file: fileId,
-    shareType: 'public',
-  });
-
-  if (!publicShare) {
+  if (!file.publicShare || !file.publicShare.isActive) {
     return { message: 'No public share found for this file.' };
   }
 
-  await publicShare.deactivate();
+  file.publicShare.isActive = false;
+  await file.save();
 
-  return {
-    message: 'Public share link has been revoked.',
-    publicShare: {
-      code: publicShare.publicCode,
-      isActive: publicShare.isActive,
-    },
-  };
+  return { message: 'Public share link has been revoked.', publicShare: { code: file.publicShare.code, isActive: file.publicShare.isActive } };
 };
 
 /**
@@ -113,37 +88,38 @@ export const revokePublicShareService = async (fileId, userId) => {
  * @returns {Promise<Object>} File details and download URL
  */
 export const getPublicDownloadLinkService = async (code) => {
-  if (!code) {
-    throw new Error('Share code is required.');
+  if (!code) throw new Error('Share code is required.');
+
+  const now = new Date();
+  const file = await File.findOne({
+    'publicShare.code': code.trim(),
+    'publicShare.isActive': true,
+    isDeleted: false
+  }).populate('user', 'name avatar');
+
+  if (!file) throw new Error('Invalid or expired share code.');
+
+  if (file.publicShare.expiresAt && file.publicShare.expiresAt < now) {
+    throw new Error('Share code has expired.');
   }
 
-  // Find valid public share
-  const publicShare = await FileShare.findValidPublicShare(code.trim());
+  // Update last accessed
+  file.lastAccessedAt = now;
+  await file.save();
 
-  if (!publicShare) {
-    throw new Error('Invalid or expired share code.');
-  }
-
-  // Record access
-  await publicShare.recordAccess();
-
-  // Generate download URL using S3 service
   const { getDownloadUrl } = await import('../../../services/s3/s3.service.js');
-  const downloadUrl = await getDownloadUrl(
-    publicShare.file.s3Key,
-    publicShare.file.fileName
-  );
+  const downloadUrl = await getDownloadUrl(file.s3Key, file.fileName);
 
   return {
     file: {
-      _id: publicShare.file._id,
-      fileName: publicShare.file.fileName,
-      fileType: publicShare.file.fileType,
-      size: publicShare.file.size,
+      _id: file._id,
+      fileName: file.fileName,
+      fileType: file.fileType,
+      size: file.size,
     },
     owner: {
-      name: publicShare.owner.name,
-      avatar: publicShare.owner.avatar,
+      name: file.user?.name,
+      avatar: file.user?.avatar,
     },
     url: downloadUrl,
   };
@@ -169,92 +145,40 @@ export const shareFileWithUserService = async (
   expiresAt = null
 ) => {
   // Fetch file and target user in parallel
-  const [file, userToShareWith] = await Promise.all([
-    File.findById(fileId),
-    User.findById(userIdToShareWith),
-  ]);
-
-  if (!file) {
-    throw new Error('File not found.');
-  }
-
-  // Verify ownership
-  if (file.user.toString() !== userId) {
+  const [file, userToShareWith] = await Promise.all([File.findById(fileId), User.findById(userIdToShareWith)]);
+  if (!file) throw new Error('File not found.');
+  if (String(file.user) !== String(userId)) {
     const error = new Error('You do not have permission to share this file.');
     error.statusCode = 403;
     throw error;
   }
-
-  // Verify target user exists
-  if (!userToShareWith) {
-    throw new Error('User to share with not found.');
-  }
-
-  // Prevent self-sharing
-  if (userIdToShareWith === userId) {
+  if (!userToShareWith) throw new Error('User to share with not found.');
+  if (String(userIdToShareWith) === String(userId)) {
     const error = new Error('You cannot share a file with yourself.');
     error.statusCode = 400;
     throw error;
   }
-
-  // Check recipient's preferences
   if (!userToShareWith.preferences?.canRecieveFiles) {
-    const error = new Error(
-      'This user is not accepting shared files at the moment.'
-    );
+    const error = new Error('This user is not accepting shared files at the moment.');
     error.statusCode = 403;
     throw error;
   }
 
-  // Check if already shared
-  const existingShare = await FileShare.findOne({
-    file: fileId,
-    shareType: 'direct',
-    sharedWith: userIdToShareWith,
-  });
-
-  if (existingShare) {
+  // Check if already shared using FileShare collection
+  const existing = await FileShare.findOne({ fileId, userId: userIdToShareWith });
+  if (existing) {
     const error = new Error('File is already shared with this user.');
     error.statusCode = 400;
     throw error;
   }
 
-  // Create direct share
-  await FileShare.create({
-    file: fileId,
-    owner: userId,
-    shareType: 'direct',
-    sharedWith: userIdToShareWith,
-    expiresAt,
-    createdBy: userId,
-  });
+  const created = await FileShare.create({ fileId, userId: userIdToShareWith, expiresAt });
 
-  // Also sync the embedded `sharedWith` array on the File document so
-  // file listing endpoints that rely on the File model reflect the share.
-  try {
-    const fileDoc = await File.findById(fileId);
-    if (fileDoc) {
-      const alreadyShared = fileDoc.sharedWith?.some?.(
-        (s) => String(s.user) === String(userIdToShareWith)
-      );
-      if (!alreadyShared) {
-        fileDoc.sharedWith = fileDoc.sharedWith || [];
-        fileDoc.sharedWith.push({ user: userIdToShareWith, expiresAt: expiresAt || null });
-        await fileDoc.save();
-      }
-    }
-  } catch (err) {
-    // Log but don't fail the share operation if embedded sync fails
-    console.error('Failed to sync File.sharedWith after creating FileShare:', err);
-  }
+  // Return created share populated
+  await created.populate('userId', 'name avatar');
+  await created.populate('fileId', 'fileName fileType size s3Key');
 
-  // Return file with populated shares
-  const updatedFile = await File.findById(fileId)
-    .populate('user', 'name avatar');
-
-  const shares = await FileShare.findByFile(fileId);
-
-  return { file: updatedFile, shares };
+  return created;
 
 };
 
@@ -272,24 +196,15 @@ export const manageShareAccessService = async (
   userIdToRemove = null
 ) => {
   const file = await File.findById(fileId);
+  if (!file) throw new Error('File not found.');
 
-  if (!file) {
-    throw new Error('File not found.');
-  }
-
-  const isOwner = file.user.toString() === userId;
+  const isOwner = String(file.user) === String(userId);
   let targetUserId = null;
 
-  if (isOwner && userIdToRemove) {
-    // Owner revoking access
-    targetUserId = userIdToRemove;
-  } else if (!isOwner && !userIdToRemove) {
-    // User removing themselves
-    targetUserId = userId;
-  } else if (isOwner && !userIdToRemove) {
-    const error = new Error(
-      'Owner must specify a userIdToRemove when revoking access.'
-    );
+  if (isOwner && userIdToRemove) targetUserId = userIdToRemove;
+  else if (!isOwner && !userIdToRemove) targetUserId = userId;
+  else if (isOwner && !userIdToRemove) {
+    const error = new Error('Owner must specify a userIdToRemove when revoking access.');
     error.statusCode = 400;
     throw error;
   } else {
@@ -298,30 +213,10 @@ export const manageShareAccessService = async (
     throw error;
   }
 
-  // Delete the share
-  await FileShare.deleteOne({
-    file: fileId,
-    shareType: 'direct',
-    sharedWith: targetUserId,
-  });
+  // Delete the share record only
+  const result = await FileShare.deleteOne({ fileId, userId: targetUserId });
 
-  // Also remove from File.sharedWith embedded array so file listings update
-  try {
-    await File.updateOne(
-      { _id: fileId },
-      { $pull: { sharedWith: { user: targetUserId } } }
-    );
-  } catch (err) {
-    console.error('Failed to remove embedded sharedWith entry after deleting FileShare:', err);
-  }
-
-  // Return updated file with shares
-  const updatedFile = await File.findById(fileId)
-    .populate('user', 'name avatar');
-
-  const shares = await FileShare.findByFile(fileId);
-
-  return { file: updatedFile, shares };
+  return { message: 'Share removed', deletedCount: result.deletedCount };
 };
 
 /**
@@ -346,27 +241,10 @@ export const bulkRemoveShareAccessService = async (fileIds, userId) => {
     }
   }
 
-  // Delete all matching shares
-  const result = await FileShare.deleteMany({
-    file: { $in: fileIds },
-    shareType: 'direct',
-    sharedWith: userId,
-  });
+  // Delete all matching shares from FileShare collection only
+  const result = await FileShare.deleteMany({ fileId: { $in: fileIds }, userId });
 
-  // Remove embedded sharedWith entries from the File documents as well
-  try {
-    await File.updateMany(
-      { _id: { $in: fileIds } },
-      { $pull: { sharedWith: { user: userId } } }
-    );
-  } catch (err) {
-    console.error('Failed to sync embedded sharedWith entries during bulk remove:', err);
-  }
-
-  return {
-    message: `${result.deletedCount} file(s) successfully removed from your shared list.`,
-    removedCount: result.deletedCount,
-  };
+  return { message: `${result.deletedCount} file(s) successfully removed from your shared list.`, removedCount: result.deletedCount };
 };
 
 // ============================================================================
@@ -386,44 +264,10 @@ export const shareFileWithClassService = async (
   userId,
   { batch, semester, section, subjectId }
 ) => {
-  // Verify file ownership
-  const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) {
-    throw new Error('File not found or you do not have permission.');
-  }
-
-  // Check if already shared with this class
-  const existingShare = await FileShare.findOne({
-    file: fileId,
-    shareType: 'class',
-    'classShare.batch': batch,
-    'classShare.semester': semester,
-    'classShare.section': section,
-  });
-
-  if (existingShare) {
-    const error = new Error('File is already shared with this class.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // Create class share
-  const classShare = await FileShare.create({
-    file: fileId,
-    owner: userId,
-    shareType: 'class',
-    classShare: {
-      subject: subjectId,
-      batch,
-      semester,
-      section,
-    },
-    createdBy: userId,
-  });
-
-  await classShare.populate('classShare.subject', 'name code');
-
-  return classShare;
+  // Class sharing is not supported in the Stage 3 two-model architecture
+  const err = new Error('Class sharing is not supported in this deployment.');
+  err.statusCode = 501;
+  throw err;
 };
 
 /**
@@ -434,25 +278,9 @@ export const shareFileWithClassService = async (
  * @returns {Promise<Object>} Success message
  */
 export const removeClassShareService = async (shareId, userId) => {
-  const share = await FileShare.findOne({
-    _id: shareId,
-    shareType: 'class',
-  }).populate('file');
-
-  if (!share) {
-    throw new Error('Class share not found.');
-  }
-
-  // Verify ownership
-  if (share.owner.toString() !== userId) {
-    const error = new Error('You do not have permission to remove this share.');
-    error.statusCode = 403;
-    throw error;
-  }
-
-  await FileShare.deleteOne({ _id: shareId });
-
-  return { message: 'Class share removed successfully.' };
+  const err = new Error('Class sharing is not supported in this deployment.');
+  err.statusCode = 501;
+  throw err;
 };
 
 // ============================================================================
@@ -467,14 +295,10 @@ export const removeClassShareService = async (shareId, userId) => {
  * @returns {Promise<Object[]>} Array of shares
  */
 export const getFileSharesService = async (fileId, userId) => {
-  // Verify ownership
   const file = await File.findOne({ _id: fileId, user: userId });
-  if (!file) {
-    throw new Error('File not found or you do not have permission.');
-  }
+  if (!file) throw new Error('File not found or you do not have permission.');
 
-  const shares = await FileShare.findByFile(fileId);
-
+  const shares = await FileShare.find({ fileId }).populate('userId', 'name avatar');
   return shares;
 };
 
@@ -486,12 +310,10 @@ export const getFileSharesService = async (fileId, userId) => {
  * @returns {Promise<Object[]>} Array of shared files
  */
 export const getFilesSharedWithUserService = async (userId, user) => {
-  const shares = await FileShare.getFilesSharedWithUser(userId, user);
+  const shares = await FileShare.find({ userId }).populate('fileId');
 
   return shares.map((share) => ({
-    ...share.file.toObject(),
-    shareType: share.shareType,
-    sharedBy: share.owner,
+    ...(share.fileId ? share.fileId.toObject() : {}),
     sharedAt: share.createdAt,
   }));
 };

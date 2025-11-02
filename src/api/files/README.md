@@ -42,6 +42,9 @@ Last updated: 2025-11-02
 ## TODO / Future work
 
 - Replace hard deletes with Trash (soft-delete) and move deletion logic into a Trash domain.
+ - Replace hard deletes with Trash (soft-delete) and move deletion logic into a Trash domain.
+	 - Status: Completed — `DELETE /api/files/:id` and `DELETE /api/files` now call the Trash service (`softDeleteFileService` / `bulkSoftDeleteService`). The Files controllers were rewired to delegate deletion to `src/api/trash/services/trash.service.js`.
+	 - Note: The Trash routes are mounted at `/api/trash`. See `src/api/trash/README.md` for full details.
 - Add file-type validation and virus/scan integration.
 - Add preview/thumbnail generation and streaming previews.
 - Add versioning and soft-restore flows.

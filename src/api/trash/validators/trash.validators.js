@@ -1,7 +1,7 @@
 import Joi from 'joi';
 
 // ============================================================================
-// Validation Schemas
+// Validation Schemas (trash)
 // ============================================================================
 
 /**
@@ -74,4 +74,11 @@ export const validate = (schema, source = 'body') => {
     req[source] = value;
     next();
   };
+};
+
+export default {
+  bulkOperationSchema,
+  cleanupSchema,
+  fileIdParamSchema,
+  validate,
 };
