@@ -17,7 +17,9 @@ export const updateProfileSchema = Joi.object({
     preferences: Joi.object({
         theme: Joi.string().valid('light', 'dark').optional(),
         isDiscoverable: Joi.boolean().optional(),
+        // Accept both the misspelled key and the correct spelling for compatibility
         canRecieveMessages: Joi.boolean().optional(),
+        canReceiveMessages: Joi.boolean().optional(),
         canRecieveFiles: Joi.boolean().optional(),
     }).optional(),
 });

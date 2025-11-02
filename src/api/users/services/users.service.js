@@ -62,6 +62,14 @@ export const updateUserProfile = async (userId, updates, req = null) => {
 
     // Merge preferences to avoid overwriting nested fields
     if (updates.preferences) {
+        // Normalize spelling differences: accept 'canReceiveMessages' from clients but store in existing DB field 'canRecieveMessages'
+        if (Object.prototype.hasOwnProperty.call(updates.preferences, 'canReceiveMessages') && !Object.prototype.hasOwnProperty.call(updates.preferences, 'canRecieveMessages')) {
+            updates.preferences.canRecieveMessages = updates.preferences.canReceiveMessages;
+        }
+
+        // Also, if both are present prefer the explicitly provided misspelled key (preserve DB intent),
+        // but keep the normalization above to ensure clients using the correct spelling work.
+
         user.preferences = { ...user.preferences, ...updates.preferences };
     }
 
