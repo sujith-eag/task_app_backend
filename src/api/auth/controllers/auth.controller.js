@@ -1,6 +1,7 @@
 import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as authService from '../services/auth.service.js';
 import { logAuthEvent } from '../services/auth.log.service.js';
+import sessionRegistry from '../../_common/socket/sessionRegistry.js';
 
 // ============================================================================
 // Authentication Controllers
@@ -134,6 +135,13 @@ export const revokeSession = asyncHandler(async (req, res) => {
   }
 
   const beforeCount = (req.user.sessions || []).length;
+  // Attempt to disconnect any live sockets associated with this session before removing it
+  try {
+    await sessionRegistry.disconnectDeviceSockets(req.user._id?.toString(), deviceId);
+  } catch (e) {
+    // ignore disconnect errors
+  }
+
   req.user.sessions = (req.user.sessions || []).filter((s) => s.deviceId !== deviceId);
   const afterCount = req.user.sessions.length;
   await req.user.save();

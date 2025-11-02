@@ -36,8 +36,8 @@ export const protect = asyncHandler(async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from the token and attach to request, minus password
-    const user = await User.findById(decoded.id).select('-password');
+  // Get user from the token and attach to request, minus password
+  const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
       return res.status(401).json({ message: 'Not authorized, user not found' });
@@ -48,7 +48,20 @@ export const protect = asyncHandler(async (req, res, next) => {
       return res.status(401).json({ message: 'User password was recently changed. Please log in again.' });
     }
 
+    // Attach user to req for downstream handlers
     req.user = user;
+
+    // Strong session check: require token to contain a jti (tokenId) and verify that the tokenId exists
+    // in the user's active sessions. This ensures server-side revocation is immediate.
+    if (!decoded || !decoded.jti) {
+      // Tokens without jti are considered legacy/invalid — force re-login
+      return res.status(401).json({ message: 'Session token invalid. Please log in again.' });
+    }
+
+    const hasSessionByToken = (user.sessions || []).some((s) => s.tokenId === decoded.jti);
+    if (!hasSessionByToken) {
+      return res.status(401).json({ message: 'Session revoked. Please log in again.' });
+    }
     // Verified, move to the next middleware
     next();
   } catch (error) {
@@ -139,6 +152,17 @@ export const socketAuthMiddleware = async (socket, next) => {
     if (!user.isVerified || !user.isActive) {
       console.warn('Socket auth failed: account inactive/banned', { userId: user._id, isVerified: user.isVerified, isActive: user.isActive });
       return next(new Error('Authentication error.'));
+    }
+
+    // Strong session check: require token to contain a jti (tokenId) and verify it exists in user's sessions
+    if (!decoded || !decoded.jti) {
+      console.warn('Socket auth failed: token missing jti');
+      return next(new Error('Authentication error: invalid token.'));
+    }
+    const hasSessionByToken = (user.sessions || []).some((s) => s.tokenId === decoded.jti);
+    if (!hasSessionByToken) {
+      console.warn('Socket auth failed: session revoked for tokenId', { userId: user._id, tokenId: decoded.jti });
+      return next(new Error('Authentication error: session revoked.'));
     }
 
     console.log('--- Middleware SUCCESS: Attaching user to socket. ---');

@@ -21,13 +21,23 @@ const PASSWORD_RESET_EXPIRY_MINUTES = 10;
 // Helper Functions
 // ============================================================================
 
+// Cookie / token lifetime configuration
+const COOKIE_MAX_AGE_DAYS = 30;
+const COOKIE_MAX_AGE_MS = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000; // 30 days
+
 /**
  * Generate JWT token for authenticated user
  * @param {string} userId - User ID
  * @returns {string} JWT token
  */
-const generateJWTtoken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '3d' });
+// Include deviceId and tokenId (jti) in token so server can validate token is tied to an active session
+const generateJWTtoken = (id, deviceId = undefined, tokenId = undefined) => {
+  const payload = { id };
+  if (deviceId) payload.deviceId = deviceId;
+  if (tokenId) payload.jti = tokenId;
+  // Keep JWT expiry aligned with cookie maxAge (seconds)
+  const expiresInSeconds = Math.floor(COOKIE_MAX_AGE_MS / 1000);
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: expiresInSeconds });
 };
 
 /**
@@ -53,12 +63,40 @@ const generateRandomToken = () => {
  * @param {string} token - JWT
  */
 const sendTokenCookie = (res, token) => {
+  // Determine cross-site cookie behavior:
+  // - If CROSS_SITE_COOKIES is explicitly set, use that (allows override).
+  // - Otherwise default to production behavior when NODE_ENV is not 'development'.
+  // Many deploys do not set NODE_ENV=production; treat absence as production.
+  const isDevelopment = String(process.env.NODE_ENV || '').toLowerCase() === 'development';
+  let crossSiteEnabled;
+  if (typeof process.env.CROSS_SITE_COOKIES !== 'undefined') {
+    crossSiteEnabled = String(process.env.CROSS_SITE_COOKIES).toLowerCase() === 'true';
+  } else {
+    // Default: enable cross-site cookies unless explicitly in development
+    crossSiteEnabled = !isDevelopment;
+  }
+
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    // If CROSS_SITE_COOKIES=true we must set Secure=true for SameSite='none' to be accepted by browsers.
+    // Otherwise default to secure=true in non-development (treat absence of NODE_ENV as production).
+    secure: crossSiteEnabled ? true : !isDevelopment,
+    // Default behavior: development -> 'lax' for local testing convenience.
+    // Production/default -> 'strict' unless crossSiteEnabled -> 'none'
+    sameSite: crossSiteEnabled ? 'none' : (isDevelopment ? 'lax' : 'strict'),
+    maxAge: COOKIE_MAX_AGE_MS,
   };
+
+  // Log cookie set for debug (avoid printing token value)
+  try {
+    if (isDevelopment) {
+      console.log('[auth] Setting jwt cookie', { secure: cookieOptions.secure, sameSite: cookieOptions.sameSite, crossSiteEnabled, NODE_ENV: process.env.NODE_ENV || 'undefined' });
+    } else {
+      // In production/default we log a minimal trace only if CROSS_SITE_COOKIES is set (helps debugging deploys)
+      if (typeof process.env.CROSS_SITE_COOKIES !== 'undefined') console.log('[auth] Setting jwt cookie (prod override)', { secure: cookieOptions.secure, sameSite: cookieOptions.sameSite, crossSiteEnabled, NODE_ENV: process.env.NODE_ENV || 'undefined' });
+    }
+  } catch (e) {}
+
   res.cookie('jwt', token, cookieOptions);
 };
 
@@ -229,17 +267,31 @@ export const loginUserService = async ({ email, password }, res) => {
     }
 
     // Create a session entry for this login (deviceId from header or generated)
-    try {
-      const deviceIdHeader = res?.req?.headers?.['x-device-id'];
-      const deviceId = deviceIdHeader || crypto.randomBytes(12).toString('hex');
-      const userAgent = res?.req?.get ? res.req.get('User-Agent') : res?.req?.headers?.['user-agent'];
-      const ipAddress = res?.req?.ip || res?.req?.headers?.['x-forwarded-for'] || null;
+    // Prepare identifiers outside the try so they are always defined for token issuance
+    const deviceIdHeader = res?.req?.headers?.['x-device-id'];
+    let deviceId = deviceIdHeader || crypto.randomBytes(12).toString('hex');
+    const tokenId = crypto.randomBytes(12).toString('hex');
+    let userAgent = res?.req?.get ? res.req.get('User-Agent') : res?.req?.headers?.['user-agent'];
+    let ipAddress = res?.req?.ip || res?.req?.headers?.['x-forwarded-for'] || null;
 
-      // Push session (limit to last 10 sessions)
+    try {
+      // Ensure sessions exist
       user.sessions = user.sessions || [];
-      user.sessions.push({ deviceId, ipAddress, userAgent, lastUsedAt: new Date(), createdAt: new Date() });
-      if (user.sessions.length > 10) {
-        user.sessions = user.sessions.slice(user.sessions.length - 10);
+      // If a session with same deviceId exists, update its lastUsedAt and metadata instead of pushing a duplicate
+      const existingIndex = user.sessions.findIndex((s) => s.deviceId === deviceId);
+      if (existingIndex !== -1) {
+        // update existing session fields and rotate tokenId
+        user.sessions[existingIndex].lastUsedAt = new Date();
+        user.sessions[existingIndex].userAgent = userAgent || user.sessions[existingIndex].userAgent;
+        user.sessions[existingIndex].ipAddress = ipAddress || user.sessions[existingIndex].ipAddress;
+        user.sessions[existingIndex].tokenId = tokenId;
+        user.sessions[existingIndex].createdAt = user.sessions[existingIndex].createdAt || new Date();
+      } else {
+        // Push new session (limit to last 10 sessions)
+        user.sessions.push({ deviceId, ipAddress, userAgent, lastUsedAt: new Date(), createdAt: new Date(), tokenId });
+        if (user.sessions.length > 10) {
+          user.sessions = user.sessions.slice(user.sessions.length - 10);
+        }
       }
 
       // Log session creation
@@ -261,8 +313,8 @@ export const loginUserService = async ({ email, password }, res) => {
 
     await user.save();
 
-    // Generate token and send as httpOnly cookie
-    const token = generateJWTtoken(user._id);
+    // Generate token and send as httpOnly cookie. Include deviceId and jti (tokenId) so it can be validated later.
+    const token = generateJWTtoken(user._id, deviceId, tokenId);
     if (res) sendTokenCookie(res, token);
 
     // Log success

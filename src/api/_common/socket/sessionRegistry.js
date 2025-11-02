@@ -7,6 +7,12 @@
 const userMap = new Map(); // userId -> Map(deviceId -> { sockets: Set(socketId), lastSeen: Date })
 const socketMap = new Map(); // socketId -> { userId, deviceId }
 
+// Optional Socket.IO server reference. Server calls attachIo(io) at startup so
+// this registry can actively disconnect sockets when needed (e.g., session revoke).
+let ioRef = null;
+
+export const attachIo = (io) => { ioRef = io; };
+
 export const registerSocket = (userId, deviceId, socketId) => {
   if (!userId || !socketId) return;
   const dId = deviceId || 'unknown';
@@ -56,6 +62,33 @@ export const unregisterSocket = (socketId) => {
   socketMap.delete(socketId);
 };
 
+/**
+ * Disconnect all sockets associated with a specific userId and deviceId.
+ * This is used when revoking a session to immediately drop live connections.
+ */
+export const disconnectDeviceSockets = (userId, deviceId) => {
+  try {
+    if (!ioRef) return;
+    const devices = userMap.get(userId);
+    if (!devices) return;
+    const entry = devices.get(deviceId || 'unknown');
+    if (!entry || !entry.sockets) return;
+    for (const socketId of Array.from(entry.sockets)) {
+      try {
+        const sock = ioRef.sockets.sockets.get(socketId);
+        if (sock && typeof sock.disconnect === 'function') {
+          // Force disconnect the socket; this will trigger the socket 'disconnect' handler
+          sock.disconnect(true);
+        }
+      } catch (e) {
+        // ignore per-socket errors
+      }
+    }
+  } catch (e) {
+    // swallow registry errors
+  }
+};
+
 export const getActiveDevicesForUser = (userId) => {
   const devices = userMap.get(userId);
   if (!devices) return [];
@@ -84,4 +117,7 @@ export default {
   getActiveDevicesForUser,
   isDeviceActive,
   clearAll,
+  // Expose attachIo and disconnect helper on default export for convenience
+  attachIo,
+  disconnectDeviceSockets,
 };

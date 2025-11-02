@@ -69,6 +69,8 @@ const userSchema = mongoose.Schema(
         deviceId: { type: String }, // A fingerprint or unique ID
         ipAddress: { type: String },
         userAgent: { type: String },
+        // tokenId (jti) ties an issued JWT to this session record so the server can revoke tokens
+        tokenId: { type: String },
         lastUsedAt: { type: Date, default: Date.now },
         createdAt: { type: Date, default: Date.now }
     }],

@@ -55,6 +55,9 @@ export { io }; // Export for use in controllers
 // Use authentication middleware for all incoming connections
 io.use(socketAuthMiddleware);
 
+// Attach io instance to sessionRegistry so registry can actively disconnect sockets on revoke
+try { sessionRegistry.attachIo(io); } catch (e) { /* ignore attach errors */ }
+
 // Main connection handler
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.user.name} (Socket ID: ${socket.id})`);
@@ -86,7 +89,14 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 // Allow credentials (cookies) from allowed origins
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// Explicitly allow some custom headers (x-device-id, x-skip-session-expired-toast)
+// so browser preflight requests succeed when the frontend sets these headers.
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-device-id', 'X-Skip-Session-Expired-Toast'],
+  exposedHeaders: ['Set-Cookie'],
+}));
 
 // --- Security & Logging Middleware ---
 // Setting security HTTP headers
