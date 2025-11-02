@@ -22,11 +22,11 @@ const subjectSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    // teachers: [{
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: 'User',
-    //     required: true,
-    // }],
+    // --- NEW ---
+    isElective: {
+        type: Boolean,
+        default: false
+    }
 }, { timestamps: true });
 
 const Subject = mongoose.model("Subject", subjectSchema);

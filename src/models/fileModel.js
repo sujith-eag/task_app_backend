@@ -27,6 +27,31 @@ const fileSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    
+    // --- NEW: Context & Description ---
+    description: { // For adding context to Subject Material folders
+        type: String,
+        trim: true,
+        maxlength: 500
+    },
+    context: {
+        type: String,
+        enum: ['personal', 'academic_material', 'assignment'], // 'assignment' covers both master and draft folders
+        default: 'personal',
+        required: true,
+        index: true // CRITICAL for performance
+    },
+    // --- NEW: Recycle Bin Fields ---
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    deletedAt: { // For the 15-day purge cron job
+        type: Date,
+        default: null
+    },
+    
     // --- Folder Structure ---
     isFolder: { type: Boolean, default: false },
     parentId: {
@@ -49,10 +74,6 @@ const fileSchema = new mongoose.Schema({
         enum: ['available', 'processing', 'archived', 'error'],
         default: 'available'
     },
-    sharedWith: [{ // Array of users this file is shared with
-		user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-		expiresAt: { type: Date, default: null } // null means no expiration
-    }],
     publicShare: {
         code: {
             type: String,
@@ -63,28 +84,38 @@ const fileSchema = new mongoose.Schema({
         isActive: { type: Boolean, default: false },
         expiresAt: { type: Date }
     },
-    sharedWithClass: { // For sharing with an entire class dynamically
-        subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
-        batch: { type: Number },
-        semester: { type: Number },
-        section: { type: String }
+    /**
+     * Last time this share was accessed
+     */
+    lastAccessedAt: {
+      type: Date,
     },
-    // --- Soft Delete Support ---
-    isDeleted: {
-        type: Boolean,
-        default: false,
-        index: true // For efficient queries of active/deleted files
-    },
-    deletedAt: {
-        type: Date,
-        default: null
-    },
-    deletedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        default: null
-    }
+	sharedWithClass: { // For sharing with an entire class dynamically
+	// This is not an unbounded array. It's a small, fixed-size object 
+		subject: { 
+			type: mongoose.Schema.Types.ObjectId, ref: 'Subject' 
+		},
+		batch: { type: Number },
+		semester: { type: Number },
+		section: { type: String }
+	}
 }, { timestamps: true });
+
+// --- NEW: Index for Unique Naming ---
+// Enforces that for any document where isDeleted: false,
+// the combination of parentId and fileName must be unique.
+fileSchema.index(
+    { parentId: 1, fileName: 1, isDeleted: 1 }, 
+    { 
+        unique: true, 
+        partialFilterExpression: { isDeleted: false } 
+    }
+);
+
+// --- NEW: Index for Search ---
+// Creates a text index on fileName to power the search endpoint
+fileSchema.index({ fileName: 'text' });
+
 
 const File = mongoose.model("File", fileSchema);
 export default File;
