@@ -1,6 +1,152 @@
-# Shares Domain
+# Shares — concise implementation notes
 
-Comprehensive sharing functionality for the file management system. This domain handles all file sharing operations including public links, direct user shares, and class-based sharing.
+This file documents the actual, minimal sharing implementation used in this codebase.
+
+Key facts
+- Public shares are stored on the File document itself: `src/models/fileModel.js` — see `publicShare` subdocument (fields: `code`, `isActive`, `expiresAt`, `lastAccessedAt`).
+- Direct user shares are small mapping documents in `src/models/fileshareModel.js` with fields: `fileId` (ref `File`), `userId` (ref `User`), and optional `expiresAt`.
+- `FileShare` indexes: `{ fileId: 1, userId: 1 }` (unique) and `{ userId: 1, fileId: 1 }` for lookups.
+
+Where to look (exact paths)
+- Models: `src/models/fileModel.js`, `src/models/fileshareModel.js`
+- Controllers: `src/api/shares/controllers/*.js` (`shares.controller.js`, `public.controller.js`)
+- Service: `src/api/shares/services/shares.service.js`
+- Routes: `src/api/shares/routes/*.js` (`shares.routes.js`, `public.routes.js`)
+- Policies & validators: `src/api/shares/policies/shares.policies.js`, `src/api/shares/validators/shares.validators.js`
+
+Routes (implemented / to check in route files)
+- POST /api/shares/:fileId/public      — create/update public share (owner only)
+- DELETE /api/shares/:fileId/public    — revoke public share (owner only)
+- POST /api/public/download            — public endpoint: exchange `{ code }` for download URL (no auth)
+- POST /api/shares/:fileId/user        — create direct share (creates `FileShare` doc)
+- DELETE /api/shares/:fileId/user      — remove shared user (owner or self)
+- GET  /api/shares/:fileId             — list file shares
+- GET  /api/shares/shared-with-me      — list files shared with current user
+
+Behavior notes
+- Public-share metadata lives on the `File` doc. There is no separate "public" record in `FileShare` in this code.
+- Direct shares are enforced unique per `fileId` + `userId` by the model index.
+- Management endpoints require authentication/JWT and ownership checks; the public download endpoint intentionally requires no auth.
+
+Recommended quick checks
+- Confirm `publicShare.code` uniqueness and index behavior in `fileModel.js` before changing generation logic.
+- Add a simple unit test asserting that creating two `FileShare` docs with same `fileId`+`userId` fails (index uniqueness).
+
+Last updated: 2025-11-02
+# Shares domain (summary + actual model mapping)
+
+This file documents how sharing is implemented in this codebase (what lives where and how it should be used). I reviewed the implementation in `src/api/shares` and the related models in `src/models` and updated this README to reflect the actual code (short, accurate, and actionable).
+
+## Quick summary
+
+- Public shares (public, code-based links) are stored on the `File` document itself under `publicShare` (see `src/models/fileModel.js`).
+- Direct user-to-file shares are stored in a small `FileShare` collection (`src/models/fileshareModel.js`) which maps a `fileId` to a `userId` and supports an optional `expiresAt` field and indexes for fast lookups.
+- The code in `src/api/shares` provides controllers, routes, validators, policies, and a service layer that implement share creation, access checks, and revocation.
+
+## Folder structure
+
+```
+src/api/shares/
+├── controllers/
+│   ├── public.controller.js    # public (unauthenticated) access handlers
+│   └── shares.controller.js    # authenticated share management
+├── services/
+│   └── shares.service.js       # business logic
+├── validators/
+│   └── shares.validators.js    # request validation (Joi)
+├── policies/
+│   └── shares.policies.js      # authorization / loading helpers
+├── routes/
+│   ├── public.routes.js        # public endpoints (download by code)
+│   └── shares.routes.js        # authenticated endpoints (create/revoke/share)
+└── README.md                   # this file
+```
+
+## Models (actual code)
+
+- `src/models/fileModel.js`
+  - Contains a `publicShare` subdocument with fields like `code`, `isActive`, `expiresAt` and a `lastAccessedAt` timestamp.
+  - Public-share logic (generate code, check expiration) is implemented to operate on this subdocument.
+
+- `src/models/fileshareModel.js` (the `FileShare` collection)
+  - Current schema fields (from the repo):
+    - `fileId: ObjectId` (ref: `File`) — required
+    - `userId: ObjectId` (ref: `User`) — required
+    - `expiresAt: Date` — optional
+  - Indexes: compound index on `{ fileId: 1, userId: 1 }` with `{ unique: true }` and another index `{ userId: 1, fileId: 1 }` for lookups.
+  - Purpose: small mapping document for direct user shares (fast existence checks, unique per file+user).
+
+Note: Because public shares are on the `File` document, there is not (in this code) a separate `public` type entry in `FileShare` — the system keeps public share data alongside the file itself.
+
+## How sharing is implemented (high level)
+
+- Public share flow:
+  1. Owner requests a public share (controller triggers service).
+ 2. Service generates/updates `file.publicShare.code`, sets `expiresAt` and `isActive` on that `File` document.
+ 3. Public download endpoint (`public.controller.js` / `public.routes.js`) accepts a code, looks up the owning `File` by `publicShare.code`, checks `isActive` and `expiresAt`, and returns a presigned S3 link (or 401 on invalid/expired).
+
+- Direct user share flow:
+ 1. Owner calls a route to share a file with a registered user.
+ 2. The service creates a `FileShare` document with `{ fileId, userId, expiresAt }` (unique per file+user).
+ 3. When a user requests `shared-with-me` or attempts access, the code checks the `FileShare` collection and the `File` owner to determine access.
+
+## What to expect in `src/api/shares`
+
+- `shares.controller.js` — endpoints for authenticated share management: create direct shares, revoke user shares, list shares for a file.
+- `public.controller.js` — endpoint to exchange a public `code` for a download URL; intentionally does not require JWT.
+- `shares.service.js` — contains the core logic: create/update public share on `File`, create `FileShare` docs, revoke shares, query shares.
+- `shares.validators.js` — Joi schemas used by routes to validate incoming requests.
+- `shares.policies.js` — middleware functions to load `File` and check ownership/permissions before controller logic.
+
+## Key implementation notes & assumptions
+
+- The `File` model (see `src/models/fileModel.js`) stores `publicShare` details: this is where public link codes and expiry are handled.
+- The `FileShare` model is intentionally minimal and used for direct user shares. The unique compound index ensures the same user isn't duplicated for the same file.
+- The codebase favors putting public link metadata on `File` rather than duplicating a `public` entry in `FileShare`.
+- The `File` model also contains fields for `sharedWithClass` and `lastAccessedAt` (useful for class sharing and analytics) — confirm intended behavior if you add class-share APIs.
+
+## Routes / common endpoints (implementation may vary slightly — check route files)
+
+- POST /api/shares/:fileId/public — create/update a public share (owner only)
+- DELETE /api/shares/:fileId/public — revoke public share (owner only)
+- POST /api/public/download — exchange `{ code }` for a download URL (no auth)
+- POST /api/shares/:fileId/user — share file with a user (creates `FileShare` doc)
+- DELETE /api/shares/:fileId/user — remove a shared user (owner or self)
+- GET /api/shares/:fileId — list shares for a file (owner or authorized users)
+- GET /api/shares/shared-with-me — list files shared with current user (uses `FileShare` and `File.sharedWithClass` checks)
+
+Always check `src/api/shares/routes/*.js` for exact parameter names and response shapes.
+
+## Security & validation
+
+- Auth: all management endpoints require a valid JWT (cookie-based `jwt` in browser flows is used across the codebase). The public download endpoint intentionally requires no auth.
+- Authorisation: `shares.policies.js` contains middleware to ensure only owners can create/revoke certain share types and users can only remove themselves (unless owner).
+- Validation: `shares.validators.js` contains request schemas; controllers should reject invalid inputs with 400.
+
+## Maintenance notes / TODOs (recommended)
+
+- Add unit tests for `FileShare` uniqueness (create duplicate should fail).
+- Add integration tests for the `public` flow (create public code → public download endpoint returns presigned URL → expiry enforcement).
+- Consider consolidating public-share logic: keep single place in `shares.service.js` to mutate `File.publicShare` (already practiced but validate boundaries).
+- If class-share functionality is required beyond `File.sharedWithClass`, discuss whether a separate collection is needed for large-scale class operations.
+
+## Where to look in the code
+
+- Controllers: `src/api/shares/controllers/*.js`
+- Routes: `src/api/shares/routes/*.js`
+- Policies (auth/ownership): `src/api/shares/policies/shares.policies.js`
+- Service: `src/api/shares/services/shares.service.js`
+- Validators: `src/api/shares/validators/shares.validators.js`
+- Models: `src/models/fileModel.js`, `src/models/fileshareModel.js`
+
+---
+
+If you'd like, I can also:
+- add short example curl requests for the real route parameter names used in `shares.routes.js`, or
+- add a small set of tests (Jest/Mocha) for the public-share flow.
+
+Last updated: 2025-11-02
+
 
 ## 📋 Table of Contents
 

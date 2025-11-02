@@ -56,10 +56,37 @@ export const getUserFiles = asyncHandler(async (req, res) => {
 export const getDownloadLink = asyncHandler(async (req, res) => {
   const url = await fileService.getFileDownloadUrlService(
     req.params.id,
-    req.user._id
+    req.user._id,
+    req.user
   );
 
   res.status(200).json({ url });
+});
+
+/**
+ * @desc    Get preview link for a file (inline view)
+ * @route   GET /api/files/downloads/:id/preview
+ * @access  Private
+ */
+export const getPreviewLink = asyncHandler(async (req, res) => {
+  const url = await fileService.getFilePreviewUrlService(
+    req.params.id,
+    req.user._id,
+    req.user
+  );
+
+  res.status(200).json({ url });
+});
+
+/**
+ * @desc    Search files by text
+ * @route   GET /api/files/search?q=...
+ * @access  Private
+ */
+export const searchFiles = asyncHandler(async (req, res) => {
+  const { q } = req.query;
+  const files = await fileService.searchFilesService(req.user._id, req.user, q);
+  res.status(200).json({ files });
 });
 
 /**
@@ -109,6 +136,45 @@ export const bulkDownloadFiles = asyncHandler(async (req, res) => {
   archive.pipe(res);
 
   // Add files to archive
+  for (const file of accessibleFiles) {
+    if (!file.isFolder) {
+      const stream = await getFileStream(file.s3Key);
+      archive.append(stream, { name: file.fileName });
+    }
+  }
+
+  await archive.finalize();
+});
+
+/**
+ * @desc    Download a folder as a zip (synchronous streaming)
+ * @route   POST /api/files/folders/:id/download
+ * @access  Private
+ */
+export const downloadFolderAsZip = asyncHandler(async (req, res) => {
+  const folderId = req.params.id;
+
+  // Get descendant files that the user can access
+  const accessibleFiles = await fileService.getDescendantFilesService(folderId, req.user._id, req.user);
+
+  // Stream zip file (same logic as bulkDownloadFiles)
+  const archiver = (await import('archiver')).default;
+  const { getFileStream } = await import('../../../services/s3.service.js');
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="EagleCampus-Folder.zip"');
+
+  const archive = archiver('zip', { zlib: { level: 9 } });
+
+  archive.on('warning', (err) => {
+    if (err.code !== 'ENOENT') throw err;
+  });
+  archive.on('error', (err) => {
+    throw err;
+  });
+
+  archive.pipe(res);
+
   for (const file of accessibleFiles) {
     if (!file.isFolder) {
       const stream = await getFileStream(file.s3Key);

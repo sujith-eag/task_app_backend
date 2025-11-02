@@ -12,8 +12,8 @@
 // ========================================
 // These imports will be gradually replaced as we refactor each domain
 
-// Keep academic files for now (will be refactored in academics module)
-import academicFileRoutes from '../api/files/academicFile.routes.js';
+// Legacy academic file routes removed — refactored into `files` / `academics` domains.
+// (old import academicFileRoutes removed)
 
 // College routes
 import studentRoutes from '../api/college/student.routes.js';
@@ -68,8 +68,7 @@ export const mountRoutes = (app) => {
     // LEGACY ROUTES (TO BE REFACTORED)
     // ========================================
     
-    // Keep academic files for now (will be refactored in academics module)
-    app.use('/api/college/files', academicFileRoutes);
+    // Legacy academic file route removed. Use the new files/academics routes when available.
     
     // College management routes
     app.use('/api/college/students', studentRoutes);

@@ -74,5 +74,6 @@ export const calculateDepth = (path) => {
  * @returns {boolean} True if depth is valid
  */
 export const isValidDepth = (path, maxDepth = 2) => {
-  return calculateDepth(path) < maxDepth;
+  // Allow depths up to and including maxDepth (reject only when greater)
+  return calculateDepth(path) <= maxDepth;
 };

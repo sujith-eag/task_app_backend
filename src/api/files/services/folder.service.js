@@ -23,6 +23,7 @@ export const createFolderService = async (folderName, userId, parentId) => {
       _id: parentId,
       user: userId,
       isFolder: true,
+      isDeleted: false,
     });
 
     if (!parentFolder) {
@@ -44,21 +45,30 @@ export const createFolderService = async (folderName, userId, parentId) => {
   }
 
   // Create folder document
-  let newFolder = await File.create({
-    user: userId,
-    fileName: folderName,
-    isFolder: true,
-    parentId: parentId || null,
-    path: newPath,
-    // Required fields for schema (not relevant for folders)
-    s3Key: new mongoose.Types.ObjectId().toString(),
-    fileType: 'folder',
-    size: 0,
-  });
+  try {
+    let newFolder = await File.create({
+      user: userId,
+      fileName: folderName,
+      isFolder: true,
+      parentId: parentId || null,
+      path: newPath,
+      // Required fields for schema (not relevant for folders)
+      s3Key: new mongoose.Types.ObjectId().toString(),
+      fileType: 'folder',
+      size: 0,
+    });
 
-  newFolder = await newFolder.populate('user', 'name avatar');
-
-  return newFolder;
+    newFolder = await newFolder.populate('user', 'name avatar');
+    return newFolder;
+  } catch (err) {
+    // Map duplicate name errors from Mongo to a 409 Conflict for the API
+    if (err && err.code === 11000) {
+      const error = new Error('A folder with that name already exists in this location.');
+      error.statusCode = 409;
+      throw error;
+    }
+    throw err;
+  }
 };
 
 // ============================================================================
@@ -79,38 +89,31 @@ export const deleteFolderService = async (folderId, userId) => {
     _id: folderId,
     user: userId,
     isFolder: true,
+    isDeleted: false,
   });
 
   if (!folder) {
     throw new Error('Folder not found.');
   }
 
-  // Find all descendants using path
+  // Find all non-deleted descendants using path
   const descendants = await File.find({
     user: userId,
     path: { $regex: `^${folder.path}${folderId},` },
+    isDeleted: false,
   });
 
-  // Collect S3 keys from files (not folders)
-  const s3KeysToDelete = descendants
-    .filter((item) => !item.isFolder)
-    .map((item) => item.s3Key);
+  // Soft-delete: mark folder and its descendants as deleted with timestamp.
+  const allIdsToMark = [...descendants.map((d) => d._id), folder._id];
 
-  // Delete from S3 in parallel if there are files
-  if (s3KeysToDelete.length > 0) {
-    const { deleteFile: deleteFromS3 } = await import(
-      '../../../services/s3.service.js'
-    );
-    await Promise.all(s3KeysToDelete.map((key) => deleteFromS3(key)));
-  }
-
-  // Delete all items (folder + descendants) from database
-  const allItemsToDelete = [...descendants.map((d) => d._id), folder._id];
-  await File.deleteMany({ _id: { $in: allItemsToDelete } });
+  await File.updateMany(
+    { _id: { $in: allIdsToMark }, user: userId },
+    { $set: { isDeleted: true, deletedAt: new Date() } }
+  );
 
   return {
-    message: 'Folder and all its contents deleted successfully.',
-    deletedCount: allItemsToDelete.length,
+    message: 'Folder and all its contents moved to Trash (soft-deleted).',
+    deletedCount: allIdsToMark.length,
   };
 };
 
@@ -130,9 +133,9 @@ export const deleteFolderService = async (folderId, userId) => {
 export const moveItemService = async (itemId, userId, newParentId) => {
   // Fetch item and destination in parallel
   const [itemToMove, destinationFolder] = await Promise.all([
-    File.findOne({ _id: itemId, user: userId }),
+    File.findOne({ _id: itemId, user: userId, isDeleted: false }),
     newParentId
-      ? File.findOne({ _id: newParentId, user: userId, isFolder: true })
+      ? File.findOne({ _id: newParentId, user: userId, isFolder: true, isDeleted: false })
       : Promise.resolve('root'), // 'root' placeholder
   ]);
 
@@ -145,6 +148,24 @@ export const moveItemService = async (itemId, userId, newParentId) => {
     throw new Error(
       'Destination folder not found or you do not have permission.'
     );
+  }
+
+  // --- Business rules: Context lock & academic lock ---
+  const itemContext = itemToMove.context || 'personal';
+  const destinationContext = destinationFolder === 'root' ? 'personal' : destinationFolder.context || 'personal';
+
+  // Context lock: cannot move items between contexts
+  if (itemContext !== destinationContext) {
+    const error = new Error('Cannot move items between contexts.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Academic lock: non-personal items cannot be moved
+  if (itemToMove.context && itemToMove.context !== 'personal') {
+    const error = new Error('Academic folders and files cannot be moved.');
+    error.statusCode = 403;
+    throw error;
   }
 
   if (itemId === newParentId) {
@@ -190,13 +211,23 @@ export const moveItemService = async (itemId, userId, newParentId) => {
   // Update the item itself
   itemToMove.parentId = newParentId || null;
   itemToMove.path = newPath;
-  await itemToMove.save();
+  try {
+    await itemToMove.save();
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const error = new Error('A file or folder with that name already exists at the destination.');
+      error.statusCode = 409;
+      throw error;
+    }
+    throw err;
+  }
 
   // If it's a folder, update all descendants' paths
   if (itemToMove.isFolder) {
     const descendants = await File.find({
       user: userId,
       path: { $regex: `^${oldPath}${itemToMove._id},` },
+      isDeleted: false,
     });
 
     if (descendants.length > 0) {
@@ -214,7 +245,16 @@ export const moveItemService = async (itemId, userId, newParentId) => {
         };
       });
 
-      await File.bulkWrite(bulkOps);
+      try {
+        await File.bulkWrite(bulkOps);
+      } catch (err) {
+        if (err && err.code === 11000) {
+          const error = new Error('A naming conflict occurred while updating descendants.');
+          error.statusCode = 409;
+          throw error;
+        }
+        throw err;
+      }
     }
   }
 
@@ -245,6 +285,7 @@ export const getFolderDetailsService = async (folderId, userId) => {
     _id: folderId,
     user: userId,
     isFolder: true,
+    isDeleted: false,
   }).populate('user', 'name avatar');
 
   if (!folder) {
@@ -257,12 +298,14 @@ export const getFolderDetailsService = async (folderId, userId) => {
       user: userId,
       path: { $regex: `^${folder.path}${folderId},` },
       isFolder: false,
+      isDeleted: false,
     }),
 
     File.countDocuments({
       user: userId,
       path: { $regex: `^${folder.path}${folderId},` },
       isFolder: true,
+      isDeleted: false,
     }),
 
     File.aggregate([
@@ -271,6 +314,7 @@ export const getFolderDetailsService = async (folderId, userId) => {
           user: new mongoose.Types.ObjectId(userId),
           path: { $regex: `^${folder.path}${folderId},` },
           isFolder: false,
+          isDeleted: false,
         },
       },
       { $group: { _id: null, totalSize: { $sum: '$size' } } },
@@ -307,6 +351,7 @@ export const isFolderNameAvailable = async (
     fileName: folderName,
     isFolder: true,
     parentId: parentId || null,
+    isDeleted: false,
   };
 
   if (excludeFolderId) {
@@ -353,7 +398,16 @@ export const renameFolderService = async (folderId, userId, newName) => {
   }
 
   folder.fileName = newName;
-  await folder.save();
+  try {
+    await folder.save();
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const error = new Error('A folder with that name already exists in this location.');
+      error.statusCode = 409;
+      throw error;
+    }
+    throw err;
+  }
 
   return folder;
 };

@@ -1,3 +1,4 @@
+
 # Validators — Files Module
 
 This folder contains Joi schemas and validation middleware for file-related requests. Validators ensure request bodies and query parameters are well-formed before controllers execute business logic.
@@ -11,7 +12,10 @@ Typical validators
 - `listFilesSchema` — validates `parentId` in the query string.
 
 Behavioral notes
-- Validation is applied as route middleware (see `routes/file.routes.js`) so controllers can assume shape of request data.
+- Validation is applied as route middleware (see `routes/file.routes.js`) so controllers can assume shape of request data. Consider adding a lightweight `searchSchema` to validate `q` in the search endpoint (optional).
 
 Testing suggestions
 - Unit-test validator schemas against expected valid and invalid payloads.
+
+Last updated: 2025-11-02
+

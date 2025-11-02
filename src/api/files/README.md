@@ -7,116 +7,32 @@ Summary of what is implemented here:
 - File listing (owned + shared + class-based for students)
 - Single-file download (S3 download URL)
 - Bulk-download as a streamed ZIP (archiver)
-- Folder create / delete (hard delete for Phase 0)
-- Move / rename folder operations with materialized path updates
-- Validation (Joi) and lightweight authorization policies
+## Behavior & Notes
 
-This README documents the actual files and behavior in `backend/src/api/files`.
+- Duplicate names: Database-level partial unique index ensures non-deleted names are unique per parent; services catch `E11000` and return `409 Conflict` where appropriate.
+- Upload concurrency: `generateUniqueFileName` attempts to avoid collisions; `insertMany` uses `ordered:false` and duplicate-key errors are surfaced as 409. Consider retry/rename strategies for high-concurrency uploads.
+- Depth limits & context locks: Creating or moving items enforces a max depth (default 2) and prevents moving items across contexts (personal vs academic). Academic items are generally not movable.
+- Search: `searchFilesService` uses MongoDB text index on `fileName` and filters by `isDeleted:false` and ownership/shares.
+- Preview: `getPreviewUrl` in the S3 service returns a signed URL without forcing download so browsers can preview inline.
 
-## On-disk structure
+## Migration & schema notes
 
-Files present in this folder (top-level):
+- A migration script (`backend/scripts/migrate_files_stage1.js`) was introduced to populate Stage‑1 fields for existing records and handle collisions safely (per‑document resolution to avoid partial unique index conflicts). The migration tracks completion in a `migrations` collection.
 
-```
-controllers/
-  file.controller.js
-  folder.controller.js
-policies/
-  file.policies.js
-routes/
-  file.routes.js
-  folder.routes.js
-services/
-  file.service.js
-  folder.service.js
-  path.service.js
-validators/
-  file.validators.js
-README.md
-```
+## Testing suggestions
 
-## Key implementation details
+- Unit tests: path utils, permission checks, filename generation, search service.
+- Integration tests: upload → list → preview → download flows and folder zip download.
 
-- Routes are defined in `routes/*.js` and mounted under `/api/files` and `/api/folders` by the app.
-- Controllers are thin wrappers (use `asyncHandler`) that call the service layer.
-- Services contain business logic and interact with the `File` mongoose model.
-- `path.service.js` implements a materialized path pattern. Path format: `,id1,id2,` (leading/trailing commas).
-- Validation uses `Joi` schemas exported from `validators/file.validators.js` and a `validate(schema, source)` helper middleware.
-- Policies in `policies/file.policies.js` provide `isOwner`, `hasReadAccess`, `canUploadToFolder`, `checkFileQuota` (placeholder) and `validateFileTypes` (placeholder).
+## Future work
 
-## Exported service functions (used by controllers)
+- Reintroduce async folder downloads using a Job worker for large exports.
+- Add pagination for large folder listing and server-side stream backpressure handling.
+- Add end-to-end tests for S3 integration and preview rendering.
 
-- file.service.js
-  - uploadFilesService(files, userId, parentId)
-  - getUserFilesService(userId, user, parentId)
-  - getFileDownloadUrlService(fileId, userId)
-  - getBulkDownloadFilesService(fileIds, userId)
-  - deleteFileService(fileId, userId)           // hard delete (Phase 0)
-  - bulkDeleteFilesService(fileIds, userId)     // hard delete (Phase 0)
+---
 
-- folder.service.js
-  - createFolderService(folderName, userId, parentId)
-  - deleteFolderService(folderId, userId)       // deletes folder + descendants (hard delete)
-  - moveItemService(itemId, userId, newParentId)
-  - getFolderDetailsService(folderId, userId)
-  - renameFolderService(folderId, userId, newName)
-  - isFolderNameAvailable(folderName, userId, parentId, excludeId)
-
-- path.service.js
-  - buildPath(parentFolder)
-  - extractAncestorIds(path)
-  - isDescendant(folderPath, folderId, potentialAncestorPath, potentialAncestorId)
-  - updateDescendantPath(oldPath, newPath, descendantPath)
-  - calculateDepth(path)
-  - isValidDepth(path, maxDepth = 2)
-
-## Routes and endpoints (what the code currently wires up)
-
-- File routes (`routes/file.routes.js`)
-  - POST  /api/files/upload           (protect, multer uploadFiles, validate(uploadFilesSchema), canUploadToFolder, checkStorageQuota)
-  - GET   /api/files                  (protect, validate(listFilesSchema, 'query'))
-  - GET   /api/files/:id/download     (protect, hasReadAccess)
-  - POST  /api/files/bulk-download    (protect)
-  - DELETE /api/files/:id             (protect, isOwner)
-  - DELETE /api/files                 (protect, validate(bulkFileIdsSchema))
-
-- Folder routes (`routes/folder.routes.js`)
-  - POST   /api/folders               (protect, validate(createFolderSchema))
-  - GET    /api/folders/:id           (protect, isOwner)
-  - PATCH  /api/folders/:id/move      (protect, validate(moveItemSchema), isOwner)
-  - PATCH  /api/folders/:id/rename    (protect, validate(renameFolderSchema), isOwner)
-  - DELETE /api/folders/:id           (protect, isOwner)
-
-Notes:
-- Uploads use the shared multer middleware at `../../_common/middleware/file.middleware.js` (configured to allow up to 10 files per request).
-- Quota enforcement uses `../../_common/middleware/quota.middleware.js`.
-- S3 interactions are delegated to the project's S3 service (used via imports in the services; current code imports from `../../../services/s3/s3.service.js` or `../../../services/s3.service.js` depending on call site).
-- Bulk-download streams files into a zip using `archiver` and streams S3 file streams directly into the archive (no temp files).
-
-## Validation
-
-- `validators/file.validators.js` exposes Joi schemas:
-  - uploadFilesSchema
-  - createFolderSchema
-  - moveItemSchema
-  - renameFolderSchema
-  - bulkFileIdsSchema
-  - listFilesSchema
-
-It also exposes `validate(schema, source)` which is used as express middleware in the route definitions.
-
-## Authorization & security
-
-- `isOwner` verifies the authenticated user owns the requested file/folder and attaches the item as `req.item`.
-- `hasReadAccess` allows owner or users explicitly shared with (honors expiration timestamps on shares).
-- `canUploadToFolder` ensures the parent folder (if provided) exists and belongs to the uploading user.
-
-## Behavioural notes & edge cases
-
-- Duplicate filename handling: `uploadFilesService` generates a unique filename by appending ` (n)` before the extension when duplicates exist in the same parent folder.
-- Path handling: paths are materialized; moving a folder updates descendant paths with a bulkWrite for efficiency.
-- Depth enforcement: `isValidDepth` is used to prevent creating/moving folders beyond the Phase 0 limit (default maxDepth = 2).
-- Deletes are currently hard deletes (files removed from S3 and DB). This will be replaced by soft-delete / Trash in a future iteration.
+Last updated: 2025-11-02
 
 ## Testing suggestions
 

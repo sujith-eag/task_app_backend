@@ -69,6 +69,32 @@ router.get(
 );
 
 /**
+ * @route   GET /api/files/downloads/:id/preview
+ * @desc    Get preview link (inline) for a file
+ * @access  Private
+ */
+router.get(
+  '/downloads/:id/preview',
+  protect,
+  hasReadAccess,
+  fileController.getPreviewLink
+);
+
+/**
+ * @route   GET /api/files/search
+ * @desc    Search files by query
+ * @access  Private
+ */
+router.get('/search', protect, fileController.searchFiles);
+
+/**
+ * @route   POST /api/files/folders/:id/download
+ * @desc    Create an async folder download job (stub)
+ * @access  Private
+ */
+router.post('/folders/:id/download', protect, fileController.downloadFolderAsZip);
+
+/**
  * @route   POST /api/files/bulk-download
  * @desc    Download multiple files as zip
  * @access  Private
