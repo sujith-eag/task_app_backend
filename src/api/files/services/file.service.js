@@ -631,6 +631,52 @@ export const deleteFileService = async (fileId, userId) => {
 };
 
 /**
+ * Rename a file (owner only)
+ *
+ * @param {string} fileId
+ * @param {string} userId
+ * @param {string} newName
+ * @returns {Promise<Object>} Updated file document
+ */
+export const renameFileService = async (fileId, userId, newName) => {
+  const file = await File.findOne({ _id: fileId, user: userId, isDeleted: false, isFolder: false });
+
+  if (!file) {
+    const error = new Error('File not found or you do not have permission.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Check for existing name conflict within same parent
+  const existing = await File.findOne({
+    user: userId,
+    fileName: newName,
+    parentId: file.parentId || null,
+    isDeleted: false,
+  });
+
+  if (existing && String(existing._id) !== String(file._id)) {
+    const error = new Error('A file or folder with that name already exists in this location.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  file.fileName = newName;
+  try {
+    await file.save();
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const error = new Error('A file with that name already exists in this location.');
+      error.statusCode = 409;
+      throw error;
+    }
+    throw err;
+  }
+
+  return file;
+};
+
+/**
  * Delete multiple files in bulk (owner only)
  * NOTE: This will be replaced by soft-delete in Part 3 (Trash domain)
  * 

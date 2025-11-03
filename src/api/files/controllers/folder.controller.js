@@ -1,5 +1,6 @@
 import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as folderService from '../services/folder.service.js';
+import * as fileService from '../services/file.service.js';
 
 // ============================================================================
 // Folder Creation Controllers
@@ -96,18 +97,30 @@ export const getFolderDetails = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const renameFolder = asyncHandler(async (req, res) => {
-  const { newName } = req.body || {};
+  // Accept several common field names from clients for robustness: newName, name, folderName
+  const body = req.body || {};
+  const newName = body.newName || body.name || body.folderName;
 
   if (!newName || typeof newName !== 'string') {
     res.status(400);
-    throw new Error('newName (string) is required to rename a folder.');
+    throw new Error('newName (string) is required to rename a folder. Expected one of: newName, name, folderName.');
   }
 
-  const result = await folderService.renameFolderService(
-    req.params.id,
-    req.user._id,
-    newName
-  );
+  try {
+    const result = await folderService.renameFolderService(
+      req.params.id,
+      req.user._id,
+      newName
+    );
 
-  res.status(200).json(result);
+    return res.status(200).json(result);
+  } catch (err) {
+    // If the target is not a folder, attempt to rename as a file instead
+    if (err && /Folder not found/i.test(err.message)) {
+      const result = await fileService.renameFileService(req.params.id, req.user._id, newName);
+      return res.status(200).json(result);
+    }
+    // Re-throw original error
+    throw err;
+  }
 });
