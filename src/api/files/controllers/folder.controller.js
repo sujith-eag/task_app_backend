@@ -11,7 +11,12 @@ import * as folderService from '../services/folder.service.js';
  * @access  Private
  */
 export const createFolder = asyncHandler(async (req, res) => {
-  const { folderName, parentId } = req.body;
+  const { folderName, parentId } = req.body || {};
+
+  if (!folderName || typeof folderName !== 'string') {
+    res.status(400);
+    throw new Error('folderName is required to create a folder.');
+  }
 
   const result = await folderService.createFolderService(
     folderName,
@@ -50,7 +55,13 @@ export const deleteFolder = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const moveItem = asyncHandler(async (req, res) => {
-  const { newParentId } = req.body;
+  const { newParentId } = req.body || {};
+
+  // newParentId may be null (root) but req.body must be an object
+  if (typeof req.body === 'undefined') {
+    res.status(400);
+    throw new Error('Request body is required and must include newParentId (can be null).');
+  }
 
   const result = await folderService.moveItemService(
     req.params.id,
@@ -85,7 +96,12 @@ export const getFolderDetails = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const renameFolder = asyncHandler(async (req, res) => {
-  const { newName } = req.body;
+  const { newName } = req.body || {};
+
+  if (!newName || typeof newName !== 'string') {
+    res.status(400);
+    throw new Error('newName (string) is required to rename a folder.');
+  }
 
   const result = await folderService.renameFolderService(
     req.params.id,

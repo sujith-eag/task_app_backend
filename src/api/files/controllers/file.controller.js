@@ -1,5 +1,7 @@
 import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as fileService from '../services/file.service.js';
+import File from '../../../models/fileModel.js';
+import * as pathService from '../services/path.service.js';
 import {
   softDeleteFileService,
   bulkSoftDeleteService
@@ -140,10 +142,74 @@ export const bulkDownloadFiles = asyncHandler(async (req, res) => {
   archive.pipe(res);
 
   // Add files to archive
-  for (const file of accessibleFiles) {
-    if (!file.isFolder) {
-      const stream = await getFileStream(file.s3Key);
+  // We'll track which file IDs we've already added to avoid duplicates
+  const addedFileIds = new Set();
+
+
+  const selectedFolders = accessibleFiles.filter((f) => f.isFolder);
+
+  // Preload descendants + folder metadata for each selected folder once.
+  // This avoids duplicate service/DB calls and allows an early, informative failure
+  // if any selected folder is empty.
+  const folderDataMap = new Map(); // folderId -> { parentFolder, folderNameMap, descendants }
+  for (const folder of selectedFolders) {
+    const descendants = await fileService.getDescendantFilesService(folder._id, req.user._id, req.user);
+    if (!descendants || descendants.length === 0) {
+      res.status(400);
+      throw new Error(`Folder "${folder.fileName}" is empty. Remove empty folders before downloading.`);
+    }
+
+    const parentFolder = await File.findById(folder._id).select('_id fileName path').lean();
+    if (!parentFolder) {
+      res.status(500);
+      throw new Error(`Folder metadata missing for "${folder._id}".`);
+    }
+
+    const folderRegex = (parentFolder && parentFolder.path ? parentFolder.path : ',') + String(parentFolder._id) + ',';
+    const folderDocs = await File.find({ path: { $regex: `^${folderRegex}` }, isFolder: true, isDeleted: false }).select('_id fileName').lean();
+    const folderNameMap = new Map();
+    folderNameMap.set(String(parentFolder._id), parentFolder.fileName);
+    for (const fd of folderDocs) folderNameMap.set(String(fd._id), fd.fileName);
+
+    folderDataMap.set(String(folder._id), { parentFolder, folderNameMap, descendants });
+  }
+
+  // Iterate preloaded folder data and append descendant file streams
+  for (const [folderId, data] of folderDataMap.entries()) {
+    const { parentFolder, folderNameMap, descendants } = data;
+    for (const f of descendants) {
+      if (addedFileIds.has(String(f._id))) continue; // skip duplicates
+      try {
+        const stream = await getFileStream(f.s3Key);
+        const ancestorIds = pathService.extractAncestorIds(f.path || '');
+        const parentIdx = ancestorIds.indexOf(String(parentFolder._id));
+        const relativeAncestorIds = parentIdx >= 0 ? ancestorIds.slice(parentIdx + 1) : [];
+        const relPathParts = relativeAncestorIds.map((id) => folderNameMap.get(String(id))).filter(Boolean);
+        const entryName = relPathParts.length > 0 ? `${parentFolder.fileName}/${relPathParts.join('/')}/${f.fileName}` : `${parentFolder.fileName}/${f.fileName}`;
+        archive.append(stream, { name: entryName });
+        addedFileIds.add(String(f._id));
+      } catch (e) {
+        // If one file stream errors, still abort the archive to surface error
+        throw e;
+      }
+    }
+  }
+
+  // Then, process any selected individual files (that were not part of selected folders)
+  const selectedFilesOnly = accessibleFiles.filter(f => !f.isFolder);
+  for (const file of selectedFilesOnly) {
+    if (addedFileIds.has(String(file._id))) continue; // already included via a selected folder
+    const stream = await getFileStream(file.s3Key);
+    // Attempt to preserve minimal folder context if file.path indicates it's inside a folder
+    try {
+      const ancestorIds = pathService.extractAncestorIds(file.path || '');
+      // If the file lives inside some parent folders that are NOT part of the selection,
+      // we will include it at top-level (file.fileName) to match user expectation of explicitly selected files.
       archive.append(stream, { name: file.fileName });
+      addedFileIds.add(String(file._id));
+    } catch (e) {
+      archive.append(stream, { name: file.fileName });
+      addedFileIds.add(String(file._id));
     }
   }
 
@@ -161,32 +227,19 @@ export const downloadFolderAsZip = asyncHandler(async (req, res) => {
   // Get descendant files that the user can access
   const accessibleFiles = await fileService.getDescendantFilesService(folderId, req.user._id, req.user);
 
-  // Stream zip file (same logic as bulkDownloadFiles)
-  const archiver = (await import('archiver')).default;
-  const { getFileStream } = await import('../../../services/s3.service.js');
-
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', 'attachment; filename="EagleCampus-Folder.zip"');
-
-  const archive = archiver('zip', { zlib: { level: 9 } });
-
-  archive.on('warning', (err) => {
-    if (err.code !== 'ENOENT') throw err;
-  });
-  archive.on('error', (err) => {
-    throw err;
-  });
-
-  archive.pipe(res);
-
-  for (const file of accessibleFiles) {
-    if (!file.isFolder) {
-      const stream = await getFileStream(file.s3Key);
-      archive.append(stream, { name: file.fileName });
-    }
+  if (!accessibleFiles || accessibleFiles.length === 0) {
+    res.status(400);
+    throw new Error('Folder is empty. Cannot download an empty folder.');
   }
 
-  await archive.finalize();
+  // Stream zip file using shared zip service
+  const parentFolder = await File.findById(folderId).select('_id fileName path').lean();
+  if (!parentFolder) {
+    res.status(404);
+    throw new Error('Folder not found.');
+  }
+  const { streamFolderZip } = await import('../../../services/zip.service.js');
+  await streamFolderZip(res, parentFolder, accessibleFiles.filter(f => !f.isFolder));
 });
 
 // ============================================================================

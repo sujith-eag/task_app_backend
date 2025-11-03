@@ -44,6 +44,7 @@ export const createPublicShareService = async (fileId, userId, duration) => {
     throw err;
   }
 
+
   // Calculate expiration
   let expiresAt = new Date();
   switch (duration) {
@@ -61,6 +62,25 @@ export const createPublicShareService = async (fileId, userId, duration) => {
   }
 
   // Generate a unique code and write to the File.publicShare subdocument
+  // Prevent creating public shares for empty folders
+  try {
+    if (file.isFolder) {
+      const folderRegex = (file.path || ',') + String(file._id) + ',';
+      const hasDescendant = await File.exists({ path: { $regex: `^${folderRegex}` }, isFolder: false, isDeleted: false });
+      if (!hasDescendant) {
+        const err = new Error('Cannot create a public share for an empty folder.');
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+  } catch (e) {
+    // If the DB check itself fails, surface a clear error
+    if (e && e.statusCode) throw e;
+    const err = new Error('Failed to validate folder contents for public share.');
+    err.statusCode = 500;
+    throw err;
+  }
+
   let code;
   for (let i = 0; i < 5; i++) {
     code = crypto.randomBytes(4).toString('hex');
@@ -134,6 +154,28 @@ export const getPublicDownloadLinkService = async (code) => {
   // Update last accessed
   file.lastAccessedAt = now;
   await file.save();
+
+  // Update last accessed
+  file.lastAccessedAt = now;
+  await file.save();
+
+  // If the shared object is a folder, return a payload that indicates this
+  // so the controller can expose a folder-download endpoint to the client.
+  if (file.isFolder) {
+    return {
+      file: {
+        _id: file._id,
+        fileName: file.fileName,
+        isFolder: true,
+      },
+      owner: {
+        name: file.user?.name,
+        avatar: file.user?.avatar,
+      },
+      // The controller will construct a public streaming URL the client can call
+      url: null,
+    };
+  }
 
   const { getDownloadUrl } = await import('../../../services/s3/s3.service.js');
   const downloadUrl = await getDownloadUrl(file.s3Key, file.fileName);
