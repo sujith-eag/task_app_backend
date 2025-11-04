@@ -56,6 +56,18 @@ router.post(
 // Restore endpoints
 // ---------------------------------------------------------------------------
 /**
+ * POST /api/trash/restore/bulk
+ * Middleware: protect -> validate(bulkOperationSchema) -> bulkOperationLimit
+ */
+router.post(
+	'/restore/bulk',
+	protect,
+	validate(bulkOperationSchema, 'body'),
+	bulkOperationLimit,
+	trashController.bulkRestore
+);
+
+/**
  * POST /api/trash/restore/:fileId
  * Middleware: protect -> loadFile -> isFileOwner -> isInTrash
  */
@@ -66,18 +78,6 @@ router.post(
 	isFileOwner,
 	isInTrash,
 	trashController.restoreFile
-);
-
-/**
- * POST /api/trash/restore/bulk
- * Middleware: protect -> validate(bulkOperationSchema) -> bulkOperationLimit
- */
-router.post(
-	'/restore/bulk',
-	protect,
-	validate(bulkOperationSchema, 'body'),
-	bulkOperationLimit,
-	trashController.bulkRestore
 );
 
 // ---------------------------------------------------------------------------

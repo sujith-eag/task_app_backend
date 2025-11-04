@@ -158,29 +158,13 @@ export const getUserFilesService = async (userId, user, parentId) => {
   // If parentId is null (root view): run big query to find all root items the
   // user owns OR are shared with them (directly or via class share).
   if (targetParentId === null) {
-    // Get list of files directly shared with the user via FileShare
-    const sharedFileIds = await FileShare.find({ userId }).distinct('fileId');
-
-    const orClauses = [
-      { user: userId },
-    ];
-
-    if (sharedFileIds && sharedFileIds.length > 0) {
-      orClauses.push({ _id: { $in: sharedFileIds } });
-    }
-
-    if (Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-      orClauses.push({
-        'sharedWithClass.batch': user.studentDetails.batch,
-        'sharedWithClass.section': user.studentDetails.section,
-        'sharedWithClass.semester': user.studentDetails.semester,
-      });
-    }
-
+    // Root view should only show items owned by the requesting user.
+    // Shared files (direct shares or class shares) are returned by the
+    // dedicated shares endpoints (e.g. /api/shares/shared-with-me).
     const rootQuery = {
       parentId: null,
       isDeleted: false,
-      $or: orClauses,
+      user: userId,
     };
 
     const files = await File.find(rootQuery)

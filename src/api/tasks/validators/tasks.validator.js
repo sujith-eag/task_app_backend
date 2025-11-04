@@ -24,7 +24,9 @@ export const validateCreateTask = [
     dueDate: baseTaskFields.dueDate.optional(),
     priority: baseTaskFields.priority.optional(),
     status: baseTaskFields.status.optional(),
-    tags: baseTaskFields.tags.optional()
+    tags: baseTaskFields.tags.optional(),
+    // allow creating a task with nested subtasks
+    subTasks: Joi.array().items(Joi.object({ text: Joi.string().trim().min(1).max(200).required(), completed: Joi.boolean().optional() })).optional()
   }) })
 ];
 
@@ -49,7 +51,9 @@ export const validateBulkCreate = [
       description: Joi.string().trim().max(2000).optional(),
       dueDate: Joi.date().iso().optional(),
       priority: Joi.string().valid('Low', 'Medium', 'High').optional(),
-      tags: Joi.array().items(tag).optional()
+      tags: Joi.array().items(tag).optional(),
+      // Accept nested subTasks when bulk-creating from AI planner
+      subTasks: Joi.array().items(Joi.object({ text: Joi.string().trim().min(1).max(200).required(), completed: Joi.boolean().optional() })).optional()
     })).min(1).required()
   }) })
 ];
