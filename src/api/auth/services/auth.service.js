@@ -7,6 +7,7 @@ import { logAudit } from '../../_common/services/audit.service.js';
 import { AuthEventTypes } from '../../../models/authEventModel.js';
 import { sendEmail } from '../../../services/email.service.js';
 import { populateTemplate } from '../../../utils/emailTemplate.js';
+import { getAuthCookieOptions } from '../../_common/utils/cookieUtils.js';
 
 // ============================================================================
 // Constants
@@ -76,16 +77,7 @@ const sendTokenCookie = (res, token) => {
     crossSiteEnabled = !isDevelopment;
   }
 
-  const cookieOptions = {
-    httpOnly: true,
-    // If CROSS_SITE_COOKIES=true we must set Secure=true for SameSite='none' to be accepted by browsers.
-    // Otherwise default to secure=true in non-development (treat absence of NODE_ENV as production).
-    secure: crossSiteEnabled ? true : !isDevelopment,
-    // Default behavior: development -> 'lax' for local testing convenience.
-    // Production/default -> 'strict' unless crossSiteEnabled -> 'none'
-    sameSite: crossSiteEnabled ? 'none' : (isDevelopment ? 'lax' : 'strict'),
-    maxAge: COOKIE_MAX_AGE_MS,
-  };
+  const cookieOptions = getAuthCookieOptions({ maxAge: COOKIE_MAX_AGE_MS });
 
   // Log cookie set for debug (avoid printing token value)
   try {

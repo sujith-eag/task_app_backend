@@ -2,6 +2,7 @@ import asyncHandler from '../../_common/http/asyncHandler.js';
 import * as authService from '../services/auth.service.js';
 import { logAuthEvent } from '../services/auth.log.service.js';
 import sessionRegistry from '../../_common/socket/sessionRegistry.js';
+import { getAuthCookieOptions } from '../../_common/utils/cookieUtils.js';
 
 // ============================================================================
 // Authentication Controllers
@@ -32,50 +33,61 @@ export const loginUser = asyncHandler(async (req, res) => {
 /**
  * @desc    Logout user (clear cookie and remove session)
  * @route   POST /api/auth/logout
- * @access  Private
+ * @access  Public (even if token is expired, we want to clear the cookie)
  */
 export const logoutUser = asyncHandler(async (req, res) => {
-  // If user is present (protected route), attempt to clear the session record
+  const { deviceId } = req.body || {};
+
+  // Best-effort: if we have an authenticated user and a deviceId, remove that session record.
   try {
-    if (req.user) {
-      const deviceId = req.headers['x-device-id'] || req.body?.deviceId;
-      if (deviceId) {
-        req.user.sessions = (req.user.sessions || []).filter(s => s.deviceId !== deviceId);
-        await req.user.save();
-        try {
-          await logAuthEvent({
-            userId: req.user._id,
-            eventType: 'SESSION_DESTROYED',
-            context: { deviceId },
-            actor: req.user.email,
-            ip: req.ip || null,
-          }, req);
-        } catch (e) {
-          // swallow logging errors
-        }
-      }
+    if (req.user && deviceId && Array.isArray(req.user.sessions)) {
       try {
-        await logAuthEvent({
-          userId: req.user._id,
-          eventType: 'LOGOUT',
-          actor: req.user.email,
-          ip: req.ip || null,
-        }, req);
+        const sessionExists = req.user.sessions.some((s) => s.deviceId === deviceId);
+        if (sessionExists) {
+        // Remove session for this device
+          req.user.sessions = req.user.sessions.filter((s) => s.deviceId !== deviceId);
+          await req.user.save();
+          try {
+            await logAuthEvent({
+              userId: req.user._id,
+              eventType: 'SESSION_DESTROYED',
+              context: { deviceId, reason: 'User-initiated logout' },
+              actor: req.user.email,
+              ip: req.ip || null,
+            }, req);
+          } catch (e) {
+            // swallow logging errors
+          }
+        }
       } catch (e) {
-        // swallow
+        // Failed to persist session removal; continue to clear cookie anyway.
+        console.error('Failed to remove session on logout:', e);
       }
     }
-  } catch (err) {
-    // ignore
+  } catch (e) {
+    // Unexpected error in logout session removal - log and continue to clear cookie
+    console.error('Error during logout session removal:', e);
   }
 
-  // Clear cookie by setting an expired cookie
-  res.cookie('jwt', 'loggedout', {
-    httpOnly: true,
-    expires: new Date(0),
-  });
-  res.json({ success: true, message: 'Logged out' });
+  // Compute cookie options to match login cookie attributes so the browser will remove the same cookie.
+  const cookieOptions = getAuthCookieOptions();
+  cookieOptions.expires = new Date(0);
+
+  // Clear the jwt cookie (best-effort). Use res.clearCookie where supported.
+  try {
+    res.cookie('jwt', 'loggedout', cookieOptions);
+  } catch (e) {
+    try { res.clearCookie('jwt', cookieOptions); } catch (ee) { /* ignore */ }
+  }
+
+  // Emit an auth event for logout (best-effort)
+  try {
+    await logAuthEvent({ eventType: 'LOGOUT', actor: req.user?.email || req.body?.email || 'unknown', userId: req.user?._id || null, severity: 'info', req });
+  } catch (e) {}
+
+  return res.status(200).json({ success: true, message: 'Logged out' });
 });
+
 
 /**
  * @desc    Return current authenticated user
