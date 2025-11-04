@@ -39,17 +39,30 @@ app.set('trust proxy', 1);
 
 
 // --- Array of allowed origins ---
-const allowedOrigins = [
-    process.env.FRONTEND_URL,    // Your production URL
-    'http://localhost:5173'     // Your local development URL
+let allowedOrigins = [
+  process.env.FRONTEND_URL, // Your production URL
+  'http://localhost:5173', // Your local development URL
 ];
+// Remove any falsy entries to avoid passing undefined into CORS
+allowedOrigins = allowedOrigins.filter(Boolean);
+
+// Helper origin checker used by Express CORS and Socket.IO to avoid
+// allowing an accidental undefined origin list which can cause preflight
+// failures in some deployments.
+const originChecker = (origin, callback) => {
+  // If no origin (e.g. server-to-server or some non-browser requests), allow
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error('Not allowed by CORS'));
+};
+
 // Initializing Socket.IO with CORS configured for allowed origins
 const io = new Server(server, {
   cors: {
-      origin: allowedOrigins,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      credentials: true,
-    },
+    origin: (origin, cb) => originChecker(origin, cb),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  },
 });
 
 export { io }; // Export for use in controllers
@@ -94,11 +107,14 @@ app.use(cookieParser());
 // Explicitly allow some custom headers (x-device-id, x-skip-session-expired-toast)
 // so browser preflight requests succeed when the frontend sets these headers.
 app.use(cors({
-  origin: allowedOrigins,
+  origin: originChecker,
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-device-id', 'X-Skip-Session-Expired-Toast'],
   exposedHeaders: ['Set-Cookie'],
 }));
+
+// Helpful debug: print allowed origins at startup so deployment logs show effective config
+console.log('CORS allowedOrigins:', allowedOrigins);
 
 // --- Security & Logging Middleware ---
 // Setting security HTTP headers
