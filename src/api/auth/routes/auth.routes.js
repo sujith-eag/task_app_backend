@@ -1,6 +1,6 @@
 import express from 'express';
 import * as authController from '../controllers/auth.controller.js';
-import { protect } from '../../_common/middleware/auth.middleware.js';
+import { protect, attachUserIfPresent } from '../../_common/middleware/auth.middleware.js';
 import {
   registerSchema,
   loginSchema,
@@ -45,7 +45,7 @@ router.post(
  * @desc    Logout and clear httpOnly cookie
  * @access  Public (clears cookie)
  */
-router.post('/logout', authController.logoutUser);
+router.post('/logout', attachUserIfPresent, authController.logoutUser);
 
 /**
  * @route   GET /api/auth/sessions

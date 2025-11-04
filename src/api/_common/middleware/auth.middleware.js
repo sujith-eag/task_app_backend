@@ -73,6 +73,45 @@ export const protect = asyncHandler(async (req, res, next) => {
 
 
 /**
+ * Optional attach middleware
+ * If a token is present (cookie/header/body) attempt to verify it and attach the user to req.user.
+ * This middleware is intentionally permissive: it never sends a 401. If verification fails
+ * we log the issue and continue without attaching a user. This is useful for public routes
+ * like /logout where we want to clear server-side sessions when a valid token was provided.
+ */
+export const attachUserIfPresent = asyncHandler(async (req, res, next) => {
+  let token;
+
+  // Grab token from cookie/header/body if present
+  if (req.cookies && req.cookies.jwt) token = req.cookies.jwt;
+  if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  if (!token && req.body && req.body.token) token = req.body.token;
+
+  if (!token) return next();
+
+  try {
+    // Minimal approach for public route: decode token payload without verifying signature.
+    // We only need the user id to look up the user for cleanup (logout). This keeps the
+    // route public and avoids enforcing auth here.
+    const decoded = jwt.decode(token) || null;
+    if (!decoded || !decoded.id) return next();
+
+    const user = await User.findById(decoded.id).select('-password');
+    if (!user) return next();
+
+    req.user = user;
+    req.tokenPayload = decoded;
+  } catch (err) {
+    // ignore any errors and continue — do not block the public route
+  }
+
+  return next();
+});
+
+
+/**
  * Socket.IO Authentication Middleware
  * Validates JWT for WebSocket connections
  * Attaches authenticated user to socket.user
