@@ -45,10 +45,13 @@ export const validateMessageSearch = [
 export const validateSocketMessage = (data) => {
     const schema = Joi.object({
         recipientId: Joi.string().required(),
-        content: Joi.string().trim().min(1).max(5000).required()
+        content: Joi.string().trim().min(1).max(5000).required(),
+        tempId: Joi.string().optional()
     });
 
-    const { error } = schema.validate(data, { abortEarly: false });
+    // Allow unknown keys so clients can include metadata (e.g., tempId) without
+    // causing validation to fail. We explicitly validate expected fields above.
+    const { error } = schema.validate(data, { abortEarly: false, allowUnknown: true });
     if (!error) return [];
     return error.details.map(d => d.message);
 };
