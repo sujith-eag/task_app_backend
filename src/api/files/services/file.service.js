@@ -104,6 +104,9 @@ export const uploadFilesService = async (files, userId, parentId) => {
  * @returns {Promise<string>} Unique filename
  */
 const generateUniqueFileName = async (originalName, userId, parentId) => {
+  // Normalize parentId: frontend may send the string 'null' to indicate root.
+  const targetParentId = parentId === 'null' ? null : (parentId || null);
+
   let finalFileName = originalName;
   let counter = 0;
   let fileExists = true;
@@ -112,7 +115,7 @@ const generateUniqueFileName = async (originalName, userId, parentId) => {
     const existingFile = await File.findOne({
       user: userId,
       fileName: finalFileName,
-      parentId: parentId || null,
+      parentId: targetParentId,
       isDeleted: false,
     });
 
