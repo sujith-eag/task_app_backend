@@ -434,7 +434,8 @@ export const getFileSharesService = async (fileId, userId) => {
  * @returns {Promise<Object[]>} Array of shared files
  */
 export const getFilesSharedWithUserService = async (userId, user) => {
-  const shares = await FileShare.find({ userId }).populate('fileId');
+  // Populate the file and its owner so the client can show "Shared by: <owner name>"
+  const shares = await FileShare.find({ userId }).populate({ path: 'fileId', populate: { path: 'user', select: 'name avatar' } });
 
   return shares.map((share) => ({
     ...(share.fileId ? share.fileId.toObject() : {}),
