@@ -66,7 +66,9 @@ export const validateTaskQuery = [
   validate({ query: Joi.object({
     status: Joi.string().valid('To Do', 'In Progress', 'Done').optional(),
     priority: Joi.string().valid('Low', 'Medium', 'High').optional(),
-    sortBy: Joi.string().pattern(/^(title|dueDate|priority|status|createdAt|updatedAt):(asc|desc)$/).optional()
+    // Accept either `field:order` (e.g. createdAt:desc) or just the field name
+    // (e.g. priority) to be forgiving with clients that omit the order.
+    sortBy: Joi.string().pattern(/^(title|dueDate|priority|status|createdAt|updatedAt)(:(asc|desc))?$/).optional()
   }) })
 ];
 
