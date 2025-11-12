@@ -85,7 +85,8 @@ export const moveItem = asyncHandler(async (req, res) => {
 export const getFolderDetails = asyncHandler(async (req, res) => {
   const result = await folderService.getFolderDetailsService(
     req.params.id,
-    req.user._id
+    req.user._id,
+    req.user
   );
 
   res.status(200).json(result);

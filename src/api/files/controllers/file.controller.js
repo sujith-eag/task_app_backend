@@ -122,7 +122,7 @@ export const bulkDownloadFiles = asyncHandler(async (req, res) => {
 
   // Stream zip file
   const archiver = (await import('archiver')).default;
-  const { getFileStream } = await import('../../../services/s3.service.js');
+  const { getFileStream } = await import('../../../services/s3/s3.service.js');
 
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader(

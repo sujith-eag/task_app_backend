@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import File from '../../../models/fileModel.js';
 import FileShare from '../../../models/fileshareModel.js';
-import { deleteFile as deleteFromS3 } from '../../../services/s3.service.js';
+import { deleteFile as deleteFromS3 } from '../../../services/s3/s3.service.js';
 
 // ============================================================================
 // Soft Delete Operations

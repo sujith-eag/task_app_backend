@@ -4,7 +4,7 @@ import * as pathService from '../api/files/services/path.service.js';
 // Helper to stream files as a zip preserving folder structure
 export const streamFolderZip = async (res, parentFolder, descendantFiles) => {
   const archiver = (await import('archiver')).default;
-  const { getFileStream } = await import('./s3.service.js');
+  const { getFileStream } = await import('./s3/s3.service.js');
 
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${parentFolder.fileName || 'folder'}.zip"`);
