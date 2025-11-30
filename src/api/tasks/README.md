@@ -406,20 +406,22 @@ None! The API contract remains identical to the original implementation. All end
 
 ## Testing Checklist
 
+> **Status**: ✅ Unit tests implemented in `__tests__/tasks.service.test.js` (27 tests)
+
 ### Task Operations
-- [ ] Create task with all fields
-- [ ] Create task with only required fields (title)
-- [ ] Get all tasks without filters
-- [ ] Get tasks filtered by status
-- [ ] Get tasks filtered by priority
-- [ ] Get tasks with sorting (ascending/descending)
-- [ ] Update task fields
-- [ ] Delete task
-- [ ] Create bulk tasks (valid array)
-- [ ] Reject bulk creation with >15 tasks
-- [ ] Get task statistics
-- [ ] Get single task by ID
-- [ ] Verify ownership (403 for other users' tasks)
+- [x] Create task with all fields
+- [x] Create task with only required fields (title)
+- [x] Get all tasks without filters
+- [x] Get tasks filtered by status
+- [x] Get tasks filtered by priority
+- [x] Get tasks with sorting (ascending/descending)
+- [x] Update task fields
+- [x] Delete task
+- [x] Create bulk tasks (valid array)
+- [x] Reject bulk creation with >15 tasks
+- [x] Get task statistics
+- [x] Get single task by ID
+- [x] Verify ownership (403 for other users' tasks)
 
 ### Subtask Operations
 - [ ] Add subtask to task
@@ -430,20 +432,37 @@ None! The API contract remains identical to the original implementation. All end
 - [ ] Verify ownership for subtask operations
 
 ### Validation
-- [ ] Reject task without title
+- [x] Reject task without title
 - [ ] Reject invalid priority value
 - [ ] Reject invalid status value
 - [ ] Reject invalid date format
 - [ ] Reject title exceeding 200 characters
 - [ ] Reject description exceeding 2000 characters
-- [ ] Validate task ID format (MongoDB ObjectId)
+- [x] Validate task ID format (MongoDB ObjectId)
 
 ### Edge Cases
-- [ ] Handle non-existent task ID
+- [x] Handle non-existent task ID
 - [ ] Handle non-existent subtask ID
-- [ ] Handle empty bulk tasks array
+- [x] Handle empty bulk tasks array
 - [ ] Handle malformed request body
-- [ ] Verify proper error messages for all failures
+- [x] Verify proper error messages for all failures
+
+## Test Coverage Summary
+
+```
+File: src/api/tasks/services/tasks.service.js
+Tests: 27 passing
+Coverage:
+├── createTask: 3 tests
+├── getUserTasks: 6 tests (filtering, sorting)
+├── getTaskById: 3 tests (found, not found, wrong owner)
+├── createBulkTasks: 5 tests (valid, limits, empty)
+├── updateTask: 3 tests
+├── deleteTask: 3 tests
+└── getTaskStats: 4 tests (aggregation)
+```
+
+Run tests: `npm test -- --testPathPattern=tasks`
 
 ## Performance Considerations
 
