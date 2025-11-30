@@ -10,6 +10,7 @@
  * - /teacher-assignments - Teacher-subject-class assignments (Admin only)
  * - /subjects          - Subject CRUD and management (Admin only)
  * - /reports           - Statistics, reports, and analytics (Admin & HOD)
+ * - /dashboard         - Dashboard statistics and charts (Admin & HOD)
  */
 
 import express from 'express';
@@ -22,6 +23,7 @@ import managementRoutes from '../management/routes/management.routes.js';
 import teacherAssignmentsRoutes from '../teacher-assignments/routes/teacher-assignments.routes.js';
 import subjectsRoutes from '../subjects/routes/subjects.routes.js';
 import reportsRoutes from '../reports/routes/reports.routes.js';
+import dashboardRoutes from '../dashboard/routes/dashboard.routes.js';
 
 const router = express.Router();
 
@@ -31,6 +33,13 @@ router.use(protect);
 // ========================================
 // ADMIN SUB-DOMAIN ROUTES
 // ========================================
+
+/**
+ * Dashboard Statistics
+ * Provides overview stats, charts data, and activity feeds
+ * Access: Admin & HOD
+ */
+router.use('/dashboard', isAdminOrHOD, dashboardRoutes);
 
 /**
  * Applications Management
