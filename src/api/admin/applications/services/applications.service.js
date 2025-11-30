@@ -9,17 +9,57 @@ import { logAudit } from '../../../_common/services/audit.service.js';
 // ============================================================================
 
 /**
- * Get all pending student applications
- * @returns {Promise<Array>} List of users with pending applications
+ * Get all pending student applications with pagination
+ * @param {Object} options - Pagination and search options
+ * @param {number} [options.page=1] - Page number
+ * @param {number} [options.limit=20] - Items per page
+ * @param {string} [options.search=''] - Search term for name, email, or USN
+ * @returns {Promise<Object>} Paginated applications with metadata
  */
-export const getPendingApplications = async () => {
-  const pendingApplications = await User.find({
-    'studentDetails.applicationStatus': 'pending',
-  })
-    .select('name email studentDetails')
-    .lean();
+export const getPendingApplications = async (options = {}) => {
+  const {
+    page = 1,
+    limit = 20,
+    search = '',
+  } = options;
 
-  return pendingApplications;
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  // Build query
+  const query = {
+    'studentDetails.applicationStatus': 'pending',
+  };
+
+  // Add search if provided
+  if (search.trim()) {
+    query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { email: { $regex: search, $options: 'i' } },
+      { 'studentDetails.usn': { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  // Execute query with pagination
+  const [applications, total] = await Promise.all([
+    User.find(query)
+      .select('name email studentDetails createdAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    User.countDocuments(query),
+  ]);
+
+  return {
+    data: applications,
+    pagination: {
+      page: Math.max(1, page),
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + applications.length < total,
+    },
+  };
 };
 
 /**

@@ -60,14 +60,16 @@ describe('Subjects Service', () => {
   // getSubjects Tests
   // ============================================================================
   describe('getSubjects', () => {
-    it('should return all subjects when no filter provided', async () => {
+    it('should return all subjects with pagination when no filter provided', async () => {
       await createTestSubject({ semester: 1 });
       await createTestSubject({ subjectCode: 'CS102', semester: 2 });
       await createTestSubject({ subjectCode: 'CS103', semester: 3 });
 
       const result = await getSubjects();
 
-      expect(result).toHaveLength(3);
+      expect(result.data).toHaveLength(3);
+      expect(result.pagination).toBeDefined();
+      expect(result.pagination.total).toBe(3);
     });
 
     it('should filter subjects by semester', async () => {
@@ -77,8 +79,8 @@ describe('Subjects Service', () => {
 
       const result = await getSubjects({ semester: 3 });
 
-      expect(result).toHaveLength(2);
-      result.forEach((subject) => {
+      expect(result.data).toHaveLength(2);
+      result.data.forEach((subject) => {
         expect(subject.semester).toBe(3);
       });
     });
@@ -88,7 +90,44 @@ describe('Subjects Service', () => {
 
       const result = await getSubjects({ semester: 8 });
 
-      expect(result).toHaveLength(0);
+      expect(result.data).toHaveLength(0);
+      expect(result.pagination.total).toBe(0);
+    });
+
+    it('should support search by name', async () => {
+      await createTestSubject({ name: 'Data Structures', subjectCode: 'CS201' });
+      await createTestSubject({ name: 'Algorithms', subjectCode: 'CS202' });
+
+      const result = await getSubjects({ search: 'data' });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('Data Structures');
+    });
+
+    it('should support search by subject code', async () => {
+      await createTestSubject({ name: 'Data Structures', subjectCode: 'CS201' });
+      await createTestSubject({ name: 'Algorithms', subjectCode: 'CS202' });
+
+      const result = await getSubjects({ search: 'CS202' });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].subjectCode).toBe('CS202');
+    });
+
+    it('should support pagination', async () => {
+      for (let i = 1; i <= 5; i++) {
+        await createTestSubject({ name: `Subject ${i}`, subjectCode: `CS${100 + i}` });
+      }
+
+      const page1 = await getSubjects({ page: 1, limit: 2 });
+      const page2 = await getSubjects({ page: 2, limit: 2 });
+
+      expect(page1.data).toHaveLength(2);
+      expect(page1.pagination.totalPages).toBe(3);
+      expect(page1.pagination.hasMore).toBe(true);
+      
+      expect(page2.data).toHaveLength(2);
+      expect(page2.pagination.page).toBe(2);
     });
   });
 

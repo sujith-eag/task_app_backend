@@ -11,32 +11,122 @@ import sessionRegistry from '../../../_common/socket/sessionRegistry.js';
 // ============================================================================
 
 /**
- * Get users by their role (verified only)
+ * Get users by their role with pagination and search (verified only)
  * @param {string} role - The role to filter by ('user', 'student', 'teacher', 'hod')
- * @returns {Promise<Array>} List of users with the specified role
+ * @param {Object} options - Pagination and search options
+ * @param {number} [options.page=1] - Page number
+ * @param {number} [options.limit=20] - Items per page
+ * @param {string} [options.search=''] - Search term for name or email
+ * @param {string} [options.sortBy='name'] - Field to sort by
+ * @param {string} [options.sortOrder='asc'] - Sort order ('asc' or 'desc')
+ * @returns {Promise<Object>} Paginated users with metadata
  */
-export const getUsersByRole = async (role) => {
-  const users = await User.find({
+export const getUsersByRole = async (role, options = {}) => {
+  const {
+    page = 1,
+    limit = 20,
+    search = '',
+    sortBy = 'name',
+    sortOrder = 'asc',
+  } = options;
+
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  // Build query
+  const query = {
     roles: role,
     isVerified: true,
-  }).select('name email studentDetails');
+  };
 
-  return users;
+  // Add search if provided
+  if (search.trim()) {
+    query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { email: { $regex: search, $options: 'i' } },
+      { 'studentDetails.usn': { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  // Build sort
+  const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+
+  // Execute query with pagination
+  const [users, total] = await Promise.all([
+    User.find(query)
+      .select('name email studentDetails')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    User.countDocuments(query),
+  ]);
+
+  return {
+    data: users,
+    pagination: {
+      page: Math.max(1, page),
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + users.length < total,
+    },
+  };
 };
 
 /**
- * Get all users with the teacher or hod role
- * @returns {Promise<Array>} List of teachers and HODs with populated assignments
+ * Get all users with the teacher or hod role with pagination
+ * @param {Object} options - Pagination and search options
+ * @param {number} [options.page=1] - Page number
+ * @param {number} [options.limit=20] - Items per page
+ * @param {string} [options.search=''] - Search term for name, email, or staffId
+ * @returns {Promise<Object>} Paginated teachers with metadata
  */
-export const getAllTeachers = async () => {
-  const teachers = await User.find({ roles: { $in: ['teacher', 'hod'] } })
-    .select('name email teacherDetails')
-    .populate({
-      path: 'teacherDetails.assignments.subject',
-      select: 'name subjectCode',
-    });
+export const getAllTeachers = async (options = {}) => {
+  const {
+    page = 1,
+    limit = 20,
+    search = '',
+  } = options;
 
-  return teachers;
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  // Build query
+  const query = { roles: { $in: ['teacher', 'hod'] } };
+
+  // Add search if provided
+  if (search.trim()) {
+    query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { email: { $regex: search, $options: 'i' } },
+      { 'teacherDetails.staffId': { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  // Execute query with pagination
+  const [teachers, total] = await Promise.all([
+    User.find(query)
+      .select('name email teacherDetails')
+      .populate({
+        path: 'teacherDetails.assignments.subject',
+        select: 'name subjectCode',
+      })
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    User.countDocuments(query),
+  ]);
+
+  return {
+    data: teachers,
+    pagination: {
+      page: Math.max(1, page),
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + teachers.length < total,
+    },
+  };
 };
 
 /**

@@ -22,19 +22,25 @@ export const createSubject = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get all subjects, with optional filtering by semester
- * @route   GET /api/admin/subjects
+ * @desc    Get all subjects with pagination, filtering, and search
+ * @route   GET /api/admin/subjects?page=1&limit=50&semester=1&search=math
  * @access  Private/Admin
  */
 export const getSubjects = asyncHandler(async (req, res) => {
-  const filters = req.query;
+  const { page = 1, limit = 50, semester, department, search = '' } = req.query;
 
-  const subjects = await subjectsService.getSubjects(filters);
+  const result = await subjectsService.getSubjects({
+    page: parseInt(page, 10) || 1,
+    limit: parseInt(limit, 10) || 50,
+    semester,
+    department,
+    search,
+  });
 
   res.status(200).json({
     success: true,
-    count: subjects.length,
-    data: subjects,
+    data: result.data,
+    pagination: result.pagination,
   });
 });
 

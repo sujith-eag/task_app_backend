@@ -23,11 +23,13 @@ describe('Applications Service', () => {
     it('should return empty array when no pending applications', async () => {
       const result = await applicationsService.getPendingApplications();
       
-      expect(result).toBeInstanceOf(Array);
-      expect(result).toHaveLength(0);
+      expect(result.data).toBeInstanceOf(Array);
+      expect(result.data).toHaveLength(0);
+      expect(result.pagination).toBeDefined();
+      expect(result.pagination.total).toBe(0);
     });
 
-    it('should return all pending applications', async () => {
+    it('should return all pending applications with pagination', async () => {
       // Create multiple pending applications
       await createPendingApplication({ name: 'Student 1' });
       await createPendingApplication({ name: 'Student 2' });
@@ -35,10 +37,11 @@ describe('Applications Service', () => {
 
       const result = await applicationsService.getPendingApplications();
 
-      expect(result).toHaveLength(3);
-      expect(result[0]).toHaveProperty('name');
-      expect(result[0]).toHaveProperty('email');
-      expect(result[0]).toHaveProperty('studentDetails');
+      expect(result.data).toHaveLength(3);
+      expect(result.pagination.total).toBe(3);
+      expect(result.data[0]).toHaveProperty('name');
+      expect(result.data[0]).toHaveProperty('email');
+      expect(result.data[0]).toHaveProperty('studentDetails');
     });
 
     it('should not return approved applications', async () => {
@@ -54,8 +57,8 @@ describe('Applications Service', () => {
 
       const result = await applicationsService.getPendingApplications();
 
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe('Pending Student');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('Pending Student');
     });
 
     it('should not return rejected applications', async () => {
@@ -71,8 +74,8 @@ describe('Applications Service', () => {
 
       const result = await applicationsService.getPendingApplications();
 
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe('Pending Student');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('Pending Student');
     });
 
     it('should return only selected fields', async () => {
@@ -80,12 +83,38 @@ describe('Applications Service', () => {
 
       const result = await applicationsService.getPendingApplications();
 
-      expect(result[0]).toHaveProperty('name');
-      expect(result[0]).toHaveProperty('email');
-      expect(result[0]).toHaveProperty('studentDetails');
+      expect(result.data[0]).toHaveProperty('name');
+      expect(result.data[0]).toHaveProperty('email');
+      expect(result.data[0]).toHaveProperty('studentDetails');
       // Should not have password or other sensitive fields
-      expect(result[0]).not.toHaveProperty('password');
-      expect(result[0]).not.toHaveProperty('sessions');
+      expect(result.data[0]).not.toHaveProperty('password');
+      expect(result.data[0]).not.toHaveProperty('sessions');
+    });
+
+    it('should support search by name or USN', async () => {
+      await createPendingApplication({ name: 'John Doe', studentDetails: { usn: 'USN001', applicationStatus: 'pending' } });
+      await createPendingApplication({ name: 'Jane Smith', studentDetails: { usn: 'USN002', applicationStatus: 'pending' } });
+
+      const result = await applicationsService.getPendingApplications({ search: 'john' });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('John Doe');
+    });
+
+    it('should support pagination', async () => {
+      for (let i = 1; i <= 5; i++) {
+        await createPendingApplication({ name: `Student ${i}` });
+      }
+
+      const page1 = await applicationsService.getPendingApplications({ page: 1, limit: 2 });
+      const page2 = await applicationsService.getPendingApplications({ page: 2, limit: 2 });
+
+      expect(page1.data).toHaveLength(2);
+      expect(page1.pagination.totalPages).toBe(3);
+      expect(page1.pagination.hasMore).toBe(true);
+      
+      expect(page2.data).toHaveLength(2);
+      expect(page2.pagination.page).toBe(2);
     });
   });
 

@@ -6,34 +6,46 @@ import * as managementService from '../services/management.service.js';
 // ============================================================================
 
 /**
- * @desc    Get users by their role (verified only)
- * @route   GET /api/admin/management/users?role=user
+ * @desc    Get users by their role with pagination and search
+ * @route   GET /api/admin/management/users?role=user&page=1&limit=20&search=john
  * @access  Private/Admin
  */
 export const getUsersByRole = asyncHandler(async (req, res) => {
-  const { role } = req.query;
+  const { role, page = 1, limit = 20, search = '', sortBy = 'name', sortOrder = 'asc' } = req.query;
 
-  const users = await managementService.getUsersByRole(role);
+  const result = await managementService.getUsersByRole(role, {
+    page: parseInt(page, 10) || 1,
+    limit: parseInt(limit, 10) || 20,
+    search,
+    sortBy,
+    sortOrder,
+  });
 
   res.status(200).json({
     success: true,
-    count: users.length,
-    data: users,
+    data: result.data,
+    pagination: result.pagination,
   });
 });
 
 /**
- * @desc    Get all users with the teacher or hod role
- * @route   GET /api/admin/management/teachers
+ * @desc    Get all teachers/HODs with pagination and search
+ * @route   GET /api/admin/management/teachers?page=1&limit=20&search=john
  * @access  Private/Admin
  */
 export const getAllTeachers = asyncHandler(async (req, res) => {
-  const teachers = await managementService.getAllTeachers();
+  const { page = 1, limit = 20, search = '' } = req.query;
+
+  const result = await managementService.getAllTeachers({
+    page: parseInt(page, 10) || 1,
+    limit: parseInt(limit, 10) || 20,
+    search,
+  });
 
   res.status(200).json({
     success: true,
-    count: teachers.length,
-    data: teachers,
+    data: result.data,
+    pagination: result.pagination,
   });
 });
 

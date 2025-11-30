@@ -29,17 +29,21 @@ describe('Management Service', () => {
       const result = await managementService.getUsersByRole('student');
       
       // Only the admin exists, no students
-      expect(result).toBeInstanceOf(Array);
-      expect(result).toHaveLength(0);
+      expect(result.data).toBeInstanceOf(Array);
+      expect(result.data).toHaveLength(0);
+      expect(result.pagination).toBeDefined();
+      expect(result.pagination.total).toBe(0);
     });
 
-    it('should return all students', async () => {
+    it('should return all students with pagination', async () => {
       await createTestStudent({ name: 'Student 1' });
       await createTestStudent({ name: 'Student 2' });
 
       const result = await managementService.getUsersByRole('student');
 
-      expect(result).toHaveLength(2);
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination.total).toBe(2);
+      expect(result.pagination.page).toBe(1);
     });
 
     it('should return all teachers', async () => {
@@ -48,7 +52,7 @@ describe('Management Service', () => {
 
       const result = await managementService.getUsersByRole('teacher');
 
-      expect(result).toHaveLength(2);
+      expect(result.data).toHaveLength(2);
     });
 
     it('should only return verified users', async () => {
@@ -57,8 +61,8 @@ describe('Management Service', () => {
 
       const result = await managementService.getUsersByRole('student');
 
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe('Verified Student');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('Verified Student');
     });
 
     it('should return selected fields only', async () => {
@@ -66,21 +70,49 @@ describe('Management Service', () => {
 
       const result = await managementService.getUsersByRole('student');
 
-      expect(result[0]).toHaveProperty('name');
-      expect(result[0]).toHaveProperty('email');
+      expect(result.data[0]).toHaveProperty('name');
+      expect(result.data[0]).toHaveProperty('email');
       // Password should not be included (undefined or not present)
-      expect(result[0].password).toBeUndefined();
+      expect(result.data[0].password).toBeUndefined();
+    });
+
+    it('should support search by name', async () => {
+      await createTestStudent({ name: 'John Doe' });
+      await createTestStudent({ name: 'Jane Smith' });
+
+      const result = await managementService.getUsersByRole('student', { search: 'john' });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('John Doe');
+    });
+
+    it('should support pagination', async () => {
+      // Create 5 students
+      for (let i = 1; i <= 5; i++) {
+        await createTestStudent({ name: `Student ${i}` });
+      }
+
+      const page1 = await managementService.getUsersByRole('student', { page: 1, limit: 2 });
+      const page2 = await managementService.getUsersByRole('student', { page: 2, limit: 2 });
+
+      expect(page1.data).toHaveLength(2);
+      expect(page1.pagination.totalPages).toBe(3);
+      expect(page1.pagination.hasMore).toBe(true);
+      
+      expect(page2.data).toHaveLength(2);
+      expect(page2.pagination.page).toBe(2);
     });
   });
 
   describe('getAllTeachers', () => {
-    it('should return all teachers and HODs', async () => {
+    it('should return all teachers and HODs with pagination', async () => {
       await createTestTeacher({ name: 'Teacher 1', roles: ['teacher'] });
       await createTestTeacher({ name: 'HOD 1', roles: ['hod'] });
 
       const result = await managementService.getAllTeachers();
 
-      expect(result).toHaveLength(2);
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination.total).toBe(2);
     });
 
     it('should populate teacher assignments', async () => {
@@ -96,8 +128,18 @@ describe('Management Service', () => {
 
       const result = await managementService.getAllTeachers();
 
-      expect(result).toHaveLength(1);
-      expect(result[0].teacherDetails.assignments).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].teacherDetails.assignments).toHaveLength(1);
+    });
+
+    it('should support search by name or staffId', async () => {
+      await createTestTeacher({ name: 'John Teacher', teacherDetails: { staffId: 'STAFF-001', department: 'CS' } });
+      await createTestTeacher({ name: 'Jane Teacher', teacherDetails: { staffId: 'STAFF-002', department: 'CS' } });
+
+      const result = await managementService.getAllTeachers({ search: 'john' });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].name).toBe('John Teacher');
     });
   });
 

@@ -32,19 +32,65 @@ export const createSubject = async (subjectData) => {
 };
 
 /**
- * Get all subjects with optional semester filter
- * @param {Object} filters - Filter options (semester)
- * @returns {Promise<Array>} List of subjects
+ * Get all subjects with optional filters and pagination
+ * @param {Object} options - Filter and pagination options
+ * @param {number} [options.page=1] - Page number
+ * @param {number} [options.limit=50] - Items per page (subjects are typically fewer)
+ * @param {number} [options.semester] - Filter by semester
+ * @param {string} [options.department] - Filter by department
+ * @param {string} [options.search=''] - Search term for name or subjectCode
+ * @returns {Promise<Object>} Paginated subjects with metadata
  */
-export const getSubjects = async (filters = {}) => {
+export const getSubjects = async (options = {}) => {
+  const {
+    page = 1,
+    limit = 50,
+    semester,
+    department,
+    search = '',
+  } = options;
+
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  // Build query
   const query = {};
 
-  if (filters.semester) {
-    query.semester = filters.semester;
+  if (semester) {
+    query.semester = parseInt(semester, 10);
   }
 
-  const subjects = await Subject.find(query);
-  return subjects;
+  if (department) {
+    query.department = { $regex: department, $options: 'i' };
+  }
+
+  // Add search if provided
+  if (search.trim()) {
+    query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { subjectCode: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  // Execute query with pagination
+  const [subjects, total] = await Promise.all([
+    Subject.find(query)
+      .sort({ semester: 1, name: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Subject.countDocuments(query),
+  ]);
+
+  return {
+    data: subjects,
+    pagination: {
+      page: Math.max(1, page),
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + subjects.length < total,
+    },
+  };
 };
 
 /**
