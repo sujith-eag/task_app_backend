@@ -10,6 +10,11 @@ import Brevo from '@getbrevo/brevo';
  * @param {string} [options.html] - The HTML content of the email (optional).
 */
 export const sendEmail = async (options) => {
+    // Skip sending emails in test environment
+    if (process.env.NODE_ENV === 'test') {
+        console.log('[TEST] Skipping email send:', options.subject);
+        return { success: true, test: true };
+    }
 
     const api = new Brevo.TransactionalEmailsApi();
 
