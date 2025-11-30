@@ -280,29 +280,73 @@ export const moveItemService = async (itemId, userId, newParentId) => {
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Folder details with stats
  */
-export const getFolderDetailsService = async (folderId, userId) => {
-  const folder = await File.findOne({
-    _id: folderId,
-    user: userId,
-    isFolder: true,
-    isDeleted: false,
-  }).populate('user', 'name avatar');
+export const getFolderDetailsService = async (folderId, userId, user = null) => {
+  // Fetch folder without owner filter; we'll enforce permission checks below
+  const folder = await File.findOne({ _id: folderId, isFolder: true, isDeleted: false }).populate('user', 'name avatar');
 
   if (!folder) {
-    throw new Error('Folder not found or you do not have permission.');
+    throw new Error('Folder not found.');
+  }
+
+  // Permission: allow owner, direct share (including ancestor shares), or class share
+  const normalizedUserId = String(userId);
+  const ownerId = folder.user ? String(folder.user) : null;
+  if (ownerId !== normalizedUserId) {
+    // Check direct share on folder or ancestor
+    const ancestorIds = folder.path ? pathService.extractAncestorIds(folder.path) : [];
+    const idsToCheck = [String(folder._id), ...ancestorIds];
+    let shared = false;
+    try {
+      // Convert ids to ObjectId where possible to ensure matching in DB
+      const objectIds = idsToCheck
+        .filter(Boolean)
+        .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id));
+      // Also convert userId to ObjectId for proper matching
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+      const FileShare = (await import('../../../models/fileshareModel.js')).default;
+      const fs = await FileShare.findOne({ fileId: { $in: objectIds }, userId: userObjectId });
+      if (fs && (!fs.expiresAt || fs.expiresAt > new Date())) shared = true;
+      // debug
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.debug('folder.getFolderDetailsService share-check', { folderId, idsToCheck, objectIds, shared, fsFound: !!fs, fsExpiresAt: fs?.expiresAt || null });
+      }
+    } catch (e) {
+      shared = false;
+    }
+
+    let classShared = false;
+    // If not owner and not direct/shared via FileShare, evaluate class share if user provided
+    if (!shared && folder.sharedWithClass && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
+      const swc = folder.sharedWithClass;
+      if (swc && typeof swc === 'object') {
+        classShared =
+          swc.batch === user.studentDetails.batch &&
+          swc.section === user.studentDetails.section &&
+          swc.semester === user.studentDetails.semester;
+      }
+    }
+
+    if (!shared && !classShared) {
+      const error = new Error('You do not have permission to view this folder.');
+      error.statusCode = 403;
+      throw error;
+    }
   }
 
   // Get statistics
+  // Use the folder owner's id when computing stats — files inside the folder are owned by the folder owner
+  const ownerIdForStats = folder.user?._id ? String(folder.user._id) : (folder.user ? String(folder.user) : null);
   const [fileCount, folderCount, totalSize] = await Promise.all([
     File.countDocuments({
-      user: userId,
+      user: ownerIdForStats,
       path: { $regex: `^${folder.path}${folderId},` },
       isFolder: false,
       isDeleted: false,
     }),
 
     File.countDocuments({
-      user: userId,
+      user: ownerIdForStats,
       path: { $regex: `^${folder.path}${folderId},` },
       isFolder: true,
       isDeleted: false,
@@ -311,7 +355,7 @@ export const getFolderDetailsService = async (folderId, userId) => {
     File.aggregate([
       {
         $match: {
-          user: new mongoose.Types.ObjectId(userId),
+          user: new mongoose.Types.ObjectId(ownerIdForStats),
           path: { $regex: `^${folder.path}${folderId},` },
           isFolder: false,
           isDeleted: false,
@@ -378,7 +422,11 @@ export const renameFolderService = async (folderId, userId, newName) => {
   });
 
   if (!folder) {
-    throw new Error('Folder not found or you do not have permission.');
+    // Use error code for reliable error type detection
+    const error = new Error('Folder not found or you do not have permission.');
+    error.code = 'FOLDER_NOT_FOUND';
+    error.statusCode = 404;
+    throw error;
   }
 
   // Check if name is available

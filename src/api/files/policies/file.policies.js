@@ -1,5 +1,7 @@
 import File from '../../../models/fileModel.js';
 import FileShare from '../../../models/fileshareModel.js';
+import * as pathService from '../services/path.service.js';
+import mongoose from 'mongoose';
 
 // ============================================================================
 // Authorization Policies for Files Module
@@ -38,6 +40,8 @@ export const isOwner = async (req, res, next) => {
 
 /**
  * Check if user has read access to a file (owner or shared with)
+ * FIXED: Now checks ancestor folder shares for inherited access
+ * 
  * @param {Request} req - Express request
  * @param {Response} res - Express response
  * @param {Function} next - Express next function
@@ -53,20 +57,55 @@ export const hasReadAccess = async (req, res, next) => {
       return res.status(404).json({ message: 'Item not found.' });
     }
 
+    // Check 1: Owner always has access
     const isOwner = item.user.toString() === userId.toString();
+    if (isOwner) {
+      req.item = item;
+      return next();
+    }
 
-    // Check direct shares in FileShare collection
+    // Check 2: Direct share OR inherited ancestor share
+    const ancestorIds = pathService.extractAncestorIds(item.path || '');
+    
+    // Convert all IDs to ObjectId for proper MongoDB matching
+    const idsToCheck = [item._id, ...ancestorIds.map(id => 
+      mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
+    )];
+    
+    const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
+      ? new mongoose.Types.ObjectId(userId) 
+      : userId;
+
     let isSharedWith = false;
     try {
-      const fsDoc = await FileShare.findOne({ fileId: item._id, userId });
-      if (fsDoc) {
-        isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
-      }
+      const fsDoc = await FileShare.findOne({ 
+        fileId: { $in: idsToCheck }, 
+        userId: userObjectId,
+        $or: [
+          { expiresAt: null },
+          { expiresAt: { $gt: new Date() } }
+        ]
+      });
+      isSharedWith = !!fsDoc;
     } catch (e) {
       isSharedWith = false;
     }
 
-    if (!isOwner && !isSharedWith) {
+    // Check 3: Class share (for students)
+    if (!isSharedWith && req.user && Array.isArray(req.user.roles) && req.user.roles.includes('student') && req.user.studentDetails) {
+      const swc = item.sharedWithClass;
+      if (swc && typeof swc === 'object') {
+        if (
+          swc.batch === req.user.studentDetails.batch &&
+          swc.section === req.user.studentDetails.section &&
+          swc.semester === req.user.studentDetails.semester
+        ) {
+          isSharedWith = true;
+        }
+      }
+    }
+
+    if (!isSharedWith) {
       return res.status(403).json({
         message: 'You do not have permission to access this item.',
       });

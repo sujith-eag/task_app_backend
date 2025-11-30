@@ -117,7 +117,8 @@ export const renameFolder = asyncHandler(async (req, res) => {
     return res.status(200).json(result);
   } catch (err) {
     // If the target is not a folder, attempt to rename as a file instead
-    if (err && /Folder not found/i.test(err.message)) {
+    // IMPROVED: Use error code instead of regex for reliable detection
+    if (err?.code === 'FOLDER_NOT_FOUND') {
       const result = await fileService.renameFileService(req.params.id, req.user._id, newName);
       return res.status(200).json(result);
     }

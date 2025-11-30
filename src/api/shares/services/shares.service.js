@@ -151,11 +151,7 @@ export const getPublicDownloadLinkService = async (code) => {
     throw new Error('Share code has expired.');
   }
 
-  // Update last accessed
-  file.lastAccessedAt = now;
-  await file.save();
-
-  // Update last accessed
+  // Update last accessed (single save only)
   file.lastAccessedAt = now;
   await file.save();
 

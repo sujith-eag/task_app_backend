@@ -3,7 +3,82 @@ import FileShare from '../../../models/fileshareModel.js';
 import { uploadFile as uploadToS3 } from '../../../services/s3/s3.service.js';
 import { getDownloadUrl, getPreviewUrl } from '../../../services/s3/s3.service.js';
 import * as pathService from './path.service.js';
+import * as permissionService from './permission.service.js';
 import mongoose from 'mongoose';
+
+/**
+ * Helper: determine whether a user has access to an item by ownership,
+ * direct share, class share, or an ancestor folder being shared with them.
+ * Accepts a File document (may be partial) and optional full `user` for class checks.
+ * 
+ * FIXED: Now properly converts IDs to ObjectId for MongoDB queries
+ */
+const userHasAccessTo = async (item, userId, user = null) => {
+  if (!item) return false;
+  
+  const normalizedUserId = permissionService.extractStringId(userId);
+  const ownerId = permissionService.extractStringId(item.user);
+  
+  // Owner always has access
+  if (ownerId === normalizedUserId) return true;
+
+  // Check direct share on the item itself or any ancestor in its path
+  const ancestorIds = pathService.extractAncestorIds(item.path || '') || [];
+  
+  // Convert all IDs to ObjectId for proper MongoDB matching
+  const idsToCheck = [item._id, ...ancestorIds]
+    .map(permissionService.toObjectId)
+    .filter(Boolean);
+  
+  const userObjectId = permissionService.toObjectId(userId);
+  
+  let fsDoc = null;
+  try {
+    // Include expiration check in the query
+    fsDoc = await FileShare.findOne({ 
+      fileId: { $in: idsToCheck }, 
+      userId: userObjectId,
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: new Date() } }
+      ]
+    });
+    if (fsDoc) return true;
+  } catch (e) {
+    // swallow and continue to class-share checks
+  }
+
+  // DEBUG: log permission check details in non-production for easier diagnosis
+  try {
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('userHasAccessTo:', {
+        itemId: String(item._id),
+        owner: ownerId,
+        userId: normalizedUserId,
+        idsChecked: idsToCheck.map(String),
+        fileShareFound: !!fsDoc,
+        path: item.path || null,
+      });
+    }
+  } catch (e) {
+    // ignore logging errors
+  }
+
+  // Class-share check when user is a student and item.sharedWithClass present
+  if (user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
+    const swc = item.sharedWithClass;
+    if (swc && typeof swc === 'object') {
+      if (
+        swc.batch === user.studentDetails.batch &&
+        swc.section === user.studentDetails.section &&
+        swc.semester === user.studentDetails.semester
+      ) return true;
+    }
+  }
+
+  return false;
+};
 
 // ============================================================================
 // File Upload Service
@@ -233,36 +308,13 @@ export const getUserFilesService = async (userId, user, parentId) => {
     throw error;
   }
 
-  // Permission check: owner OR direct share OR class share
-  const normalizedUserId = String(userId);
-  const ownerId = parentFolder.user ? String(parentFolder.user) : null;
-  let isOwner = ownerId === normalizedUserId;
-  // Check direct share via FileShare collection (if present and not expired)
-  let isSharedWith = false;
-  try {
-    const fsDoc = await FileShare.findOne({ fileId: parentFolder._id, userId });
-    if (fsDoc) {
-      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
+    // Permission check: owner OR direct share (including ancestor shares) OR class share
+    const hasAccess = await userHasAccessTo(parentFolder, userId, user);
+    if (!hasAccess) {
+      const error = new Error('You do not have permission to view this folder.');
+      error.statusCode = 403;
+      throw error;
     }
-  } catch (e) {
-    isSharedWith = false;
-  }
-  let isClassShared = false;
-  if (!isOwner && !isSharedWith && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    const swc = parentFolder.sharedWithClass;
-    if (swc && typeof swc === 'object') {
-      isClassShared =
-        swc.batch === user.studentDetails.batch &&
-        swc.section === user.studentDetails.section &&
-        swc.semester === user.studentDetails.semester;
-    }
-  }
-
-  if (!isOwner && !isSharedWith && !isClassShared) {
-    const error = new Error('You do not have permission to view this folder.');
-    error.statusCode = 403;
-    throw error;
-  }
 
   // Authorized: return children with a simple, fast query (permission inheritance)
   const files = await File.find({ parentId: targetParentId, isDeleted: false })
@@ -270,17 +322,71 @@ export const getUserFilesService = async (userId, user, parentId) => {
     .populate('user', 'name avatar');
 
   // Build breadcrumbs from parentFolder.path
+  // IMPORTANT: For shared folders, only show breadcrumbs starting from the shared folder
+  // to prevent users from seeing/clicking on parent folders they don't have access to
   let breadcrumbs = [];
+  const normalizedUserId = permissionService.extractStringId(userId);
+  const ownerId = permissionService.extractStringId(parentFolder.user);
+  const isOwner = ownerId === normalizedUserId;
+  let shareRootId = null; // Track the root of the share for navigation
+
   if (parentFolder && parentFolder.path) {
     const ancestorIds = pathService.extractAncestorIds(parentFolder.path);
     if (ancestorIds.length > 0) {
-      const ancestors = await File.find({ _id: { $in: ancestorIds }, isDeleted: false }).select('fileName');
+      const ancestors = await File.find({ _id: { $in: ancestorIds }, isDeleted: false }).select('fileName path');
       const ancestorMap = new Map(ancestors.map((anc) => [anc._id.toString(), anc]));
-      breadcrumbs = ancestorIds.map((id) => ancestorMap.get(id));
+      
+      if (isOwner) {
+        // Owner sees full breadcrumb trail
+        breadcrumbs = ancestorIds.map((id) => ancestorMap.get(id)).filter(Boolean);
+      } else {
+        // Shared user: find the topmost ancestor they have direct access to
+        // and only show breadcrumbs from that point
+        const userObjectId = permissionService.toObjectId(userId);
+        const allIdsToCheck = [parentFolder._id, ...ancestorIds].map(permissionService.toObjectId).filter(Boolean);
+        
+        // Find all shares for this user in the ancestor chain
+        const shares = await FileShare.find({
+          fileId: { $in: allIdsToCheck },
+          userId: userObjectId,
+          $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }]
+        }).select('fileId');
+        
+        const sharedFolderIds = new Set(shares.map(s => String(s.fileId)));
+        
+        // Find the topmost shared ancestor (the share root)
+        let shareRootIndex = -1;
+        for (let i = 0; i < ancestorIds.length; i++) {
+          if (sharedFolderIds.has(String(ancestorIds[i]))) {
+            shareRootIndex = i;
+            shareRootId = ancestorIds[i]; // Store the share root ID
+            break; // Found the topmost shared ancestor
+          }
+        }
+        
+        if (shareRootIndex >= 0) {
+          // Only include ancestors from shareRoot onwards (not including shareRoot itself, 
+          // as that will be shown as the "root" in shared context)
+          breadcrumbs = ancestorIds.slice(shareRootIndex + 1).map((id) => ancestorMap.get(id)).filter(Boolean);
+        } else if (sharedFolderIds.has(String(parentFolder._id))) {
+          // The current folder itself is the share root, no breadcrumbs needed
+          shareRootId = String(parentFolder._id);
+          breadcrumbs = [];
+        } else {
+          // Fallback: show no breadcrumbs for safety
+          breadcrumbs = [];
+        }
+      }
     }
+  } else if (!isOwner) {
+    // No path but not owner - this folder itself is the share root
+    shareRootId = String(parentFolder._id);
   }
 
-  return { files, currentFolder: parentFolder, breadcrumbs };
+  // Add a flag to indicate if this is a shared context (for frontend UI)
+  const isSharedContext = !isOwner;
+
+  return { files, currentFolder: parentFolder, breadcrumbs, isSharedContext, shareRootId };
 };
 
 // ============================================================================
@@ -317,37 +423,8 @@ export const getFileDownloadUrlService = async (fileId, userId, user = null) => 
     return String(val);
   };
 
-  // Check permission
-  // Normalize comparison by stringifying the incoming userId (may be ObjectId)
-  const normalizedUserId = String(userId);
-  const ownerId = extractId(file.user);
-  const isOwner = ownerId === normalizedUserId;
-  // Check direct share via FileShare collection
-  let isSharedWith = false;
-  try {
-    const fsDoc = await FileShare.findOne({ fileId: file._id, userId });
-    if (fsDoc) {
-      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
-    }
-  } catch (e) {
-    isSharedWith = false;
-  }
-
-  // Class-share check (optional): callers can provide the `user` object so we can evaluate
-  // class-based shares (batch/section/semester). If caller doesn't provide `user`, we fall
-  // back to owner/direct-share only.
-  let isClassShared = false;
-  if (!isOwner && !isSharedWith && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    const swc = file.sharedWithClass;
-    if (swc && typeof swc === 'object') {
-      isClassShared =
-        swc.batch === user.studentDetails.batch &&
-        swc.section === user.studentDetails.section &&
-        swc.semester === user.studentDetails.semester;
-    }
-  }
-
-  if (!isOwner && !isSharedWith && !isClassShared) {
+  const hasAccess = await userHasAccessTo(file, userId, user);
+  if (!hasAccess) {
     const error = new Error('You do not have permission to access this file.');
     error.statusCode = 403;
     throw error;
@@ -383,36 +460,11 @@ export const getBulkDownloadFilesService = async (fileIds, userId, user = null) 
     throw error;
   }
 
-  // Validate permission per-file (owner OR direct share with non-expired OR class-share if user provided)
-  const normalizedUserId = String(userId);
+  // Validate permission per-file using helper that also checks ancestor shares
   const unauthorized = [];
-  // Preload direct shares for these candidate files for this user
-  const sharedDocs = await FileShare.find({ fileId: { $in: fileIds }, userId });
-  const sharedValidSet = new Set(
-    sharedDocs
-      .filter((s) => !s.expiresAt || s.expiresAt > new Date())
-      .map((s) => String(s.fileId))
-  );
-
   for (const f of candidateFiles) {
-    const ownerId = f.user ? String(f.user) : null;
-    const isOwner = ownerId === normalizedUserId;
-    const isSharedWith = sharedValidSet.has(String(f._id));
-
-    let isClassShared = false;
-    if (!isOwner && !isSharedWith && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-      const swc = f.sharedWithClass;
-      if (swc && typeof swc === 'object') {
-        isClassShared =
-          swc.batch === user.studentDetails.batch &&
-          swc.section === user.studentDetails.section &&
-          swc.semester === user.studentDetails.semester;
-      }
-    }
-
-    if (!isOwner && !isSharedWith && !isClassShared) {
-      unauthorized.push(String(f._id));
-    }
+    const ok = await userHasAccessTo(f, userId, user);
+    if (!ok) unauthorized.push(String(f._id));
   }
 
   if (unauthorized.length > 0) {
@@ -454,32 +506,8 @@ export const getFilePreviewUrlService = async (fileId, userId, user = null) => {
     return String(val);
   };
 
-  const normalizedUserId = String(userId);
-  const ownerId = extractId(file.user);
-  const isOwner = ownerId === normalizedUserId;
-  // Check direct share via FileShare collection
-  let isSharedWith = false;
-  try {
-    const fsDoc = await FileShare.findOne({ fileId: file._id, userId });
-    if (fsDoc) {
-      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
-    }
-  } catch (e) {
-    isSharedWith = false;
-  }
-
-  let isClassShared = false;
-  if (!isOwner && !isSharedWith && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    const swc = file.sharedWithClass;
-    if (swc && typeof swc === 'object') {
-      isClassShared =
-        swc.batch === user.studentDetails.batch &&
-        swc.section === user.studentDetails.section &&
-        swc.semester === user.studentDetails.semester;
-    }
-  }
-
-  if (!isOwner && !isSharedWith && !isClassShared) {
+  const hasAccess = await userHasAccessTo(file, userId, user);
+  if (!hasAccess) {
     const error = new Error('You do not have permission to access this file.');
     error.statusCode = 403;
     throw error;
@@ -542,32 +570,9 @@ export const getDescendantFilesService = async (folderId, userId, user = null) =
   }
 
   // Permission check (owner OR direct share OR class share)
-  const normalizedUserId = String(userId);
-  const ownerId = parentFolder.user ? String(parentFolder.user) : null;
-  let isOwner = ownerId === normalizedUserId;
-
-  let isSharedWith = false;
-  try {
-    const fsDoc = await FileShare.findOne({ fileId: parentFolder._id, userId });
-    if (fsDoc) {
-      isSharedWith = !fsDoc.expiresAt || fsDoc.expiresAt > new Date();
-    }
-  } catch (e) {
-    isSharedWith = false;
-  }
-
-  let isClassShared = false;
-  if (!isOwner && !isSharedWith && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    const swc = parentFolder.sharedWithClass;
-    if (swc && typeof swc === 'object') {
-      isClassShared =
-        swc.batch === user.studentDetails.batch &&
-        swc.section === user.studentDetails.section &&
-        swc.semester === user.studentDetails.semester;
-    }
-  }
-
-  if (!isOwner && !isSharedWith && !isClassShared) {
+  // Permission check: owner OR direct share (including ancestor shares) OR class share
+  const hasAccess = await userHasAccessTo(parentFolder, userId, user);
+  if (!hasAccess) {
     const error = new Error('You do not have permission to view this folder.');
     error.statusCode = 403;
     throw error;

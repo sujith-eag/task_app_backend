@@ -34,9 +34,10 @@ router.post(
 /**
  * @route   GET /api/folders/:id
  * @desc    Get folder details with statistics
- * @access  Private
+ * @access  Private (owner or shared users with inherited access)
+ * @note    Permission check is handled in the service to allow shared folder access
  */
-router.get('/:id', protect, isOwner, folderController.getFolderDetails);
+router.get('/:id', protect, folderController.getFolderDetails);
 
 // ============================================================================
 // Folder Update Routes
