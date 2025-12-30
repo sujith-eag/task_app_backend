@@ -98,14 +98,9 @@ export const getFolderDetails = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const renameFolder = asyncHandler(async (req, res) => {
-  // Accept several common field names from clients for robustness: newName, name, folderName
-  const body = req.body || {};
-  const newName = body.newName || body.name || body.folderName;
-
-  if (!newName || typeof newName !== 'string') {
-    res.status(400);
-    throw new Error('newName (string) is required to rename a folder. Expected one of: newName, name, folderName.');
-  }
+  // Use validated body from Joi validator, fallback to req.body
+  const body = req.validated_body || req.body || {};
+  const newName = body.newName;
 
   try {
     const result = await folderService.renameFolderService(
