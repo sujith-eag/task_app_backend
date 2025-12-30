@@ -64,28 +64,91 @@ export const bulkRemoveSchema = Joi.object({
 });
 
 /**
- * Schema for class share
+ * Schema for sharing with one or multiple classes
+ * Accepts either a single class share or an array of class shares
  */
 export const shareWithClassSchema = Joi.object({
-  batch: Joi.number().integer().min(2000).max(2100).required().messages({
-    'number.base': 'Batch must be a number',
-    'number.min': 'Batch must be between 2000 and 2100',
-    'number.max': 'Batch must be between 2000 and 2100',
-    'any.required': 'Batch is required',
+  classShares: Joi.array()
+    .items(
+      Joi.object({
+        batch: Joi.number().integer().min(2020).max(2035).required().messages({
+          'number.base': 'Batch must be a number',
+          'number.min': 'Batch must be between 2020 and 2035',
+          'number.max': 'Batch must be between 2020 and 2035',
+          'any.required': 'Batch is required',
+        }),
+        semester: Joi.number().integer().min(1).max(8).required().messages({
+          'number.base': 'Semester must be a number',
+          'number.min': 'Semester must be between 1 and 8',
+          'number.max': 'Semester must be between 1 and 8',
+          'any.required': 'Semester is required',
+        }),
+        section: Joi.string()
+          .valid('A', 'B', 'C')
+          .uppercase()
+          .required()
+          .messages({
+            'any.only': 'Section must be A, B, or C',
+            'any.required': 'Section is required',
+          }),
+        subjectId: Joi.string().hex().length(24).required().messages({
+          'string.hex': 'Subject ID must be a valid MongoDB ObjectId',
+          'string.length': 'Subject ID must be 24 characters',
+          'any.required': 'Subject ID is required',
+        }),
+        expiresAt: Joi.date().iso().optional().allow(null).messages({
+          'date.format': 'Expiration date must be in ISO format',
+        }),
+      })
+    )
+    .min(1)
+    .required()
+    .messages({
+      'array.min': 'At least one class share must be provided',
+      'any.required': 'Class shares array is required',
+    }),
+  description: Joi.string().trim().max(500).optional().allow(null, '').messages({
+    'string.max': 'Description cannot exceed 500 characters',
   }),
-  semester: Joi.number().integer().min(1).max(8).required().messages({
-    'number.base': 'Semester must be a number',
-    'number.min': 'Semester must be between 1 and 8',
-    'number.max': 'Semester must be between 1 and 8',
-    'any.required': 'Semester is required',
+});
+
+/**
+ * Schema for removing class shares
+ */
+export const removeClassShareSchema = Joi.object({
+  classFilters: Joi.array()
+    .items(
+      Joi.object({
+        batch: Joi.number().integer().required(),
+        semester: Joi.number().integer().required(),
+        section: Joi.string().valid('A', 'B', 'C').required(),
+        subjectId: Joi.string().hex().length(24).required(),
+      })
+    )
+    .optional()
+    .default([])
+    .messages({
+      'array.base': 'Class filters must be an array',
+    }),
+});
+
+/**
+ * Schema for updating class share expiration
+ */
+export const updateClassShareExpirationSchema = Joi.object({
+  expiresAt: Joi.date().iso().allow(null).required().messages({
+    'date.format': 'Expiration date must be in ISO format',
+    'any.required': 'Expiration date is required (use null for no expiration)',
   }),
-  section: Joi.string().trim().uppercase().required().messages({
-    'string.empty': 'Section is required',
-    'any.required': 'Section is required',
-  }),
-  subjectId: Joi.string().required().messages({
-    'string.empty': 'Subject ID is required',
-    'any.required': 'Subject ID is required',
+});
+
+/**
+ * Schema for getting class materials (query params)
+ */
+export const getClassMaterialsSchema = Joi.object({
+  subjectId: Joi.string().hex().length(24).optional().messages({
+    'string.hex': 'Subject ID must be a valid MongoDB ObjectId',
+    'string.length': 'Subject ID must be 24 characters',
   }),
 });
 

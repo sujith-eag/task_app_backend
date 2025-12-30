@@ -91,17 +91,25 @@ export const hasReadAccess = async (req, res, next) => {
       isSharedWith = false;
     }
 
-    // Check 3: Class share (for students)
+    // Check 3: Class share (for students) - use ClassShare collection
     if (!isSharedWith && req.user && Array.isArray(req.user.roles) && req.user.roles.includes('student') && req.user.studentDetails) {
-      const swc = item.sharedWithClass;
-      if (swc && typeof swc === 'object') {
-        if (
-          swc.batch === req.user.studentDetails.batch &&
-          swc.section === req.user.studentDetails.section &&
-          swc.semester === req.user.studentDetails.semester
-        ) {
+      const ClassShare = (await import('../../../models/classShareModel.js')).default;
+      try {
+        const classShare = await ClassShare.exists({
+          fileId: item._id,
+          batch: req.user.studentDetails.batch,
+          semester: req.user.studentDetails.semester,
+          section: req.user.studentDetails.section,
+          $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+          ]
+        });
+        if (classShare) {
           isSharedWith = true;
         }
+      } catch (e) {
+        // Continue with isSharedWith = false
       }
     }
 

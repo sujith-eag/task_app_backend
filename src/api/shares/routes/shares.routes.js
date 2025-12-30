@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect } from '../../_common/middleware/auth.middleware.js';
+import { isTeacher, isStudent } from '../../_common/middleware/rbac.middleware.js';
 import {
   createPublicShare,
   revokePublicShare,
@@ -8,6 +9,9 @@ import {
   bulkRemoveShareAccess,
   shareFileWithClass,
   removeClassShare,
+  getFileClassShares,
+  getClassMaterials,
+  updateClassShareExpiration,
   getFileShares,
   getMySharedFiles,
   getFilesSharedWithMe,
@@ -18,6 +22,9 @@ import {
   removeUserAccessSchema,
   bulkRemoveSchema,
   shareWithClassSchema,
+  removeClassShareSchema,
+  updateClassShareExpirationSchema,
+  getClassMaterialsSchema,
   validate,
 } from '../validators/shares.validators.js';
 import {
@@ -107,11 +114,13 @@ router.post(
 
 /**
  * POST /api/shares/:fileId/class
- * Share file with entire class (batch/semester/section)
+ * Share file/folder with one or multiple classes
+ * Body: { classShares: [...], description?: string }
  */
 router.post(
   '/:fileId/class',
   protect,
+  isTeacher, // Only teachers can share with classes
   loadFile,
   canShareFile,
   validate(shareWithClassSchema, 'body'),
@@ -119,15 +128,57 @@ router.post(
 );
 
 /**
+ * GET /api/shares/:fileId/class
+ * Get all class shares for a file (teacher view)
+ */
+router.get(
+  '/:fileId/class',
+  protect,
+  isTeacher,
+  loadFile,
+  isFileOwner,
+  getFileClassShares
+);
+
+/**
  * DELETE /api/shares/:fileId/class
- * Remove class share
+ * Remove one or more class shares for a file
+ * Body: { classFilters?: [...] } - empty array removes all
  */
 router.delete(
   '/:fileId/class',
   protect,
+  isTeacher,
   loadFile,
   isFileOwner,
+  validate(removeClassShareSchema, 'body'),
   removeClassShare
+);
+
+/**
+ * GET /api/shares/class-materials
+ * Get all files/materials shared with student's class
+ * Query: ?subjectId=xxx (optional filter)
+ */
+router.get(
+  '/class-materials',
+  protect,
+  isStudent, // Only students can access this
+  validate(getClassMaterialsSchema, 'query'),
+  getClassMaterials
+);
+
+/**
+ * PATCH /api/shares/class/:shareId/expiration
+ * Update expiration date for a specific class share
+ * Body: { expiresAt: Date | null }
+ */
+router.patch(
+  '/class/:shareId/expiration',
+  protect,
+  isTeacher,
+  validate(updateClassShareExpirationSchema, 'body'),
+  updateClassShareExpiration
 );
 
 // ============================================================================

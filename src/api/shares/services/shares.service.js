@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import FileShare from '../../../models/fileshareModel.js';
+import ClassShare from '../../../models/classShareModel.js';
 import File from '../../../models/fileModel.js';
 import User from '../../../models/userModel.js';
+import Subject from '../../../models/subjectModel.js';
 import mongoose from 'mongoose';
 
 // ============================================================================
@@ -358,35 +360,331 @@ export const bulkRemoveShareAccessService = async (fileIds, userId) => {
 // ============================================================================
 
 /**
- * Share a file with a class (batch/semester/section)
+ * Share a file or folder with one or multiple classes
  * 
- * @param {string} fileId - File ID
- * @param {string} userId - User ID (must be owner)
- * @param {Object} classDetails - Class details (batch, semester, section, subject)
- * @returns {Promise<Object>} Created class share
+ * @param {string} fileId - File/folder ID
+ * @param {string} userId - User ID (must be owner and teacher)
+ * @param {Array} classShares - Array of class share objects
+ * @param {string} description - Optional description for all shares
+ * @returns {Promise<Object>} Created class shares
+ * 
+ * @example
+ * classShares = [
+ *   { batch: 2024, semester: 5, section: 'A', subjectId: '507f...', expiresAt: null },
+ *   { batch: 2024, semester: 5, section: 'B', subjectId: '507f...', expiresAt: '2025-06-30' }
+ * ]
  */
 export const shareFileWithClassService = async (
   fileId,
   userId,
-  { batch, semester, section, subjectId }
+  classShares,
+  description = null
 ) => {
-  // Class sharing is not supported in the Stage 3 two-model architecture
-  const err = new Error('Class sharing is not supported in this deployment.');
-  err.statusCode = 501;
-  throw err;
+  // 1. Validate input
+  if (!Array.isArray(classShares) || classShares.length === 0) {
+    const error = new Error('At least one class share must be provided.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 2. Fetch and validate file
+  const file = await File.findOne({ _id: fileId, isDeleted: false });
+  
+  if (!file) {
+    const error = new Error('File not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 3. Verify ownership
+  if (String(file.user) !== String(userId)) {
+    const error = new Error('You do not have permission to share this file.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // 4. Verify user is a teacher
+  const teacher = await User.findById(userId);
+  if (!teacher || !Array.isArray(teacher.roles) || !teacher.roles.includes('teacher')) {
+    const error = new Error('Only teachers can share files with classes.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // 5. Validate each class share and check teacher authorization
+  const validatedShares = [];
+  const subjectIds = new Set();
+
+  for (const share of classShares) {
+    const { batch, semester, section, subjectId, expiresAt } = share;
+
+    // Validate required fields
+    if (!batch || !semester || !section || !subjectId) {
+      const error = new Error('Each class share must include batch, semester, section, and subjectId.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Verify teacher is assigned to teach this subject
+    const isAssigned = teacher.teacherDetails?.assignments?.some(
+      assignment =>
+        String(assignment.subject) === String(subjectId) &&
+        assignment.batch === batch &&
+        assignment.semester === semester &&
+        assignment.sections.includes(section)
+    );
+
+    if (!isAssigned) {
+      const error = new Error(
+        `You are not assigned to teach this subject for Batch ${batch}, Semester ${semester}, Section ${section}.`
+      );
+      error.statusCode = 403;
+      throw error;
+    }
+
+    subjectIds.add(String(subjectId));
+    validatedShares.push({ batch, semester, section, subjectId, expiresAt });
+  }
+
+  // 6. Verify all subjects exist
+  const subjects = await Subject.find({ _id: { $in: Array.from(subjectIds) } });
+  if (subjects.length !== subjectIds.size) {
+    const error = new Error('One or more subjects not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 7. Update file context if it's personal
+  if (file.context === 'personal') {
+    file.context = 'academic_material';
+    await file.save();
+  }
+
+  // 8. Create or update class shares (use upsert to handle duplicates)
+  const shareOperations = validatedShares.map(share => ({
+    updateOne: {
+      filter: {
+        fileId,
+        batch: share.batch,
+        semester: share.semester,
+        section: share.section,
+        subject: share.subjectId
+      },
+      update: {
+        $set: {
+          sharedBy: userId,
+          expiresAt: share.expiresAt || null,
+          description: description || undefined
+        }
+      },
+      upsert: true
+    }
+  }));
+
+  const result = await ClassShare.bulkWrite(shareOperations);
+
+  // 9. Fetch created/updated shares
+  const createdShares = await ClassShare.find({
+    fileId,
+    sharedBy: userId
+  })
+    .populate('subject', 'name subjectCode')
+    .populate('sharedBy', 'name email')
+    .sort({ createdAt: -1 });
+
+  return {
+    message: `File shared with ${validatedShares.length} class(es) successfully.`,
+    totalShares: createdShares.length,
+    newShares: result.upsertedCount,
+    updatedShares: result.modifiedCount,
+    shares: createdShares,
+    file: {
+      _id: file._id,
+      fileName: file.fileName,
+      context: file.context
+    }
+  };
 };
 
 /**
- * Remove class share
+ * Remove one or more class shares for a file
  * 
- * @param {string} shareId - FileShare ID
+ * @param {string} fileId - File ID
  * @param {string} userId - User ID (must be owner)
- * @returns {Promise<Object>} Success message
+ * @param {Array} classFilters - Array of class identifiers to remove (optional - removes all if empty)
+ * @returns {Promise<Object>} Success message with count
+ * 
+ * @example
+ * // Remove specific shares
+ * classFilters = [
+ *   { batch: 2024, semester: 5, section: 'A', subjectId: '507f...' },
+ *   { batch: 2024, semester: 5, section: 'B', subjectId: '507f...' }
+ * ]
+ * 
+ * // Remove all shares for this file
+ * classFilters = []
  */
-export const removeClassShareService = async (shareId, userId) => {
-  const err = new Error('Class sharing is not supported in this deployment.');
-  err.statusCode = 501;
-  throw err;
+export const removeClassShareService = async (fileId, userId, classFilters = []) => {
+  // 1. Verify file exists and user is owner
+  const file = await File.findOne({ _id: fileId, user: userId, isDeleted: false });
+  
+  if (!file) {
+    const error = new Error('File not found or you do not have permission.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 2. Build delete query
+  const deleteQuery = { fileId, sharedBy: userId };
+
+  // 3. If specific classes provided, add filters
+  if (Array.isArray(classFilters) && classFilters.length > 0) {
+    const orConditions = classFilters.map(filter => ({
+      batch: filter.batch,
+      semester: filter.semester,
+      section: filter.section,
+      subject: filter.subjectId
+    }));
+    deleteQuery.$or = orConditions;
+  }
+
+  // 4. Delete shares
+  const result = await ClassShare.deleteMany(deleteQuery);
+
+  return {
+    message: result.deletedCount > 0 
+      ? `Removed ${result.deletedCount} class share(s) successfully.`
+      : 'No class shares found to remove.',
+    deletedCount: result.deletedCount
+  };
+};
+
+/**
+ * Get all class shares for a file (teacher view)
+ * 
+ * @param {string} fileId - File ID
+ * @param {string} userId - User ID (must be owner)
+ * @returns {Promise<Array>} Array of class shares
+ */
+export const getFileClassSharesService = async (fileId, userId) => {
+  // 1. Verify file exists and user is owner
+  const file = await File.findOne({ _id: fileId, user: userId, isDeleted: false });
+  
+  if (!file) {
+    return []; // Return empty array for non-existent or unauthorized files
+  }
+
+  // 2. Fetch all active class shares
+  const shares = await ClassShare.find({
+    fileId,
+    $or: [
+      { expiresAt: null },
+      { expiresAt: { $gt: new Date() } }
+    ]
+  })
+    .populate('subject', 'name subjectCode')
+    .populate('sharedBy', 'name email')
+    .sort({ batch: 1, semester: 1, section: 1 });
+
+  return shares;
+};
+
+/**
+ * Get all files shared with a student's class
+ * 
+ * @param {Object} user - Student user object with studentDetails
+ * @param {string} subjectId - Optional subject filter
+ * @returns {Promise<Array>} Array of files with share details
+ */
+export const getClassMaterialsService = async (user, subjectId = null) => {
+  // 1. Validate student details
+  if (!user.studentDetails || !user.studentDetails.batch) {
+    const error = new Error('Student enrollment details not found.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { batch, semester, section } = user.studentDetails;
+
+  // 2. Build query
+  const query = {
+    batch,
+    semester,
+    section,
+    $or: [
+      { expiresAt: null },
+      { expiresAt: { $gt: new Date() } }
+    ]
+  };
+
+  if (subjectId) {
+    query.subject = subjectId;
+  }
+
+  // 3. Find all class shares for this student
+  const shares = await ClassShare.find(query)
+    .populate({
+      path: 'fileId',
+      match: { isDeleted: false }, // Only non-deleted files
+      populate: {
+        path: 'user',
+        select: 'name email'
+      }
+    })
+    .populate('subject', 'name subjectCode')
+    .sort({ createdAt: -1 });
+
+  // 4. Filter out null fileIds (deleted files) and format response
+  const materials = shares
+    .filter(share => share.fileId !== null)
+    .map(share => ({
+      ...share.fileId.toObject(),
+      sharedBy: {
+        name: share.sharedBy?.name,
+        email: share.sharedBy?.email
+      },
+      subject: share.subject,
+      shareDescription: share.description,
+      sharedAt: share.createdAt,
+      expiresAt: share.expiresAt
+    }));
+
+  return materials;
+};
+
+/**
+ * Update class share expiration date
+ * 
+ * @param {string} shareId - ClassShare ID
+ * @param {string} userId - User ID (must be owner)
+ * @param {Date|null} expiresAt - New expiration date (null for no expiration)
+ * @returns {Promise<Object>} Updated share
+ */
+export const updateClassShareExpirationService = async (shareId, userId, expiresAt) => {
+  // 1. Find share
+  const share = await ClassShare.findById(shareId).populate('fileId', 'user');
+
+  if (!share) {
+    const error = new Error('Class share not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 2. Verify ownership
+  if (!share.fileId || String(share.fileId.user) !== String(userId)) {
+    const error = new Error('You do not have permission to modify this share.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // 3. Update expiration
+  share.expiresAt = expiresAt;
+  await share.save();
+
+  return {
+    message: 'Share expiration updated successfully.',
+    share: await share.populate('subject', 'name subjectCode')
+  };
 };
 
 // ============================================================================

@@ -1,4 +1,6 @@
 import File from '../../../models/fileModel.js';
+import FileShare from '../../../models/fileshareModel.js';
+import ClassShare from '../../../models/classShareModel.js';
 import mongoose from 'mongoose';
 import * as pathService from './path.service.js';
 
@@ -317,13 +319,21 @@ export const getFolderDetailsService = async (folderId, userId, user = null) => 
 
     let classShared = false;
     // If not owner and not direct/shared via FileShare, evaluate class share if user provided
-    if (!shared && folder.sharedWithClass && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-      const swc = folder.sharedWithClass;
-      if (swc && typeof swc === 'object') {
-        classShared =
-          swc.batch === user.studentDetails.batch &&
-          swc.section === user.studentDetails.section &&
-          swc.semester === user.studentDetails.semester;
+    if (!shared && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
+      try {
+        const classShare = await ClassShare.exists({
+          fileId: folderId,
+          batch: user.studentDetails.batch,
+          semester: user.studentDetails.semester,
+          section: user.studentDetails.section,
+          $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+          ]
+        });
+        classShared = !!classShare;
+      } catch (e) {
+        classShared = false;
       }
     }
 

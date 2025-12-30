@@ -102,31 +102,82 @@ export const bulkRemoveShareAccess = asyncHandler(async (req, res) => {
 // ============================================================================
 
 /**
- * @desc    Share a file with a class
- * @route   POST /api/shares/:id/class
- * @access  Private (owner only, typically teachers)
+ * @desc    Share a file/folder with one or multiple classes
+ * @route   POST /api/shares/:fileId/class
+ * @access  Private (teacher only, must own file)
  */
 export const shareFileWithClass = asyncHandler(async (req, res) => {
-  const { batch, semester, section, subjectId } = req.body;
+  const { classShares, description } = req.body;
 
   const result = await sharesService.shareFileWithClassService(
     req.params.fileId,
     req.user._id,
-    { batch, semester, section, subjectId }
+    classShares,
+    description
   );
 
   res.status(201).json(result);
 });
 
 /**
- * @desc    Remove a class share
- * @route   DELETE /api/shares/class/:shareId
+ * @desc    Remove one or more class shares for a file
+ * @route   DELETE /api/shares/:fileId/class
  * @access  Private (owner only)
  */
 export const removeClassShare = asyncHandler(async (req, res) => {
+  const { classFilters } = req.body;
+
   const result = await sharesService.removeClassShareService(
-    req.params.shareId,
+    req.params.fileId,
+    req.user._id,
+    classFilters
+  );
+
+  res.status(200).json(result);
+});
+
+/**
+ * @desc    Get all class shares for a file
+ * @route   GET /api/shares/:fileId/class
+ * @access  Private (owner only)
+ */
+export const getFileClassShares = asyncHandler(async (req, res) => {
+  const result = await sharesService.getFileClassSharesService(
+    req.params.fileId,
     req.user._id
+  );
+
+  res.status(200).json(result);
+});
+
+/**
+ * @desc    Get all files/materials shared with student's class
+ * @route   GET /api/shares/class-materials
+ * @access  Private (student only)
+ */
+export const getClassMaterials = asyncHandler(async (req, res) => {
+  const { subjectId } = req.query;
+
+  const result = await sharesService.getClassMaterialsService(
+    req.user,
+    subjectId
+  );
+
+  res.status(200).json(result);
+});
+
+/**
+ * @desc    Update class share expiration date
+ * @route   PATCH /api/shares/class/:shareId/expiration
+ * @access  Private (owner only)
+ */
+export const updateClassShareExpiration = asyncHandler(async (req, res) => {
+  const { expiresAt } = req.body;
+
+  const result = await sharesService.updateClassShareExpirationService(
+    req.params.shareId,
+    req.user._id,
+    expiresAt
   );
 
   res.status(200).json(result);

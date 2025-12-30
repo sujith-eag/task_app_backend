@@ -13,6 +13,7 @@
 import mongoose from 'mongoose';
 import File from '../../../models/fileModel.js';
 import FileShare from '../../../models/fileshareModel.js';
+import ClassShare from '../../../models/classShareModel.js';
 import * as pathService from './path.service.js';
 
 /**
@@ -107,16 +108,55 @@ export const checkReadAccess = async (fileId, userId, user = null) => {
     }
   }
 
-  // Check 4: Class share
+  // Check 4: Class share (using ClassShare collection)
   if (user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    const swc = file.sharedWithClass;
-    if (swc && typeof swc === 'object') {
-      if (
-        swc.batch === user.studentDetails.batch &&
-        swc.section === user.studentDetails.section &&
-        swc.semester === user.studentDetails.semester
-      ) {
-        return { hasAccess: true, reason: 'class_share', file };
+    try {
+      const classShare = await ClassShare.findOne({
+        fileId,
+        batch: user.studentDetails.batch,
+        semester: user.studentDetails.semester,
+        section: user.studentDetails.section,
+        $or: [
+          { expiresAt: null },
+          { expiresAt: { $gt: new Date() } }
+        ]
+      });
+
+      if (classShare) {
+        return { 
+          hasAccess: true, 
+          reason: 'class_share', 
+          file,
+          sharedVia: classShare._id
+        };
+      }
+
+      // Also check ancestor folders for class shares
+      if (ancestorIds.length > 0) {
+        const ancestorClassShare = await ClassShare.findOne({
+          fileId: { $in: idsToCheck },
+          batch: user.studentDetails.batch,
+          semester: user.studentDetails.semester,
+          section: user.studentDetails.section,
+          $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+          ]
+        });
+
+        if (ancestorClassShare) {
+          return {
+            hasAccess: true,
+            reason: 'inherited_class_share',
+            file,
+            sharedVia: ancestorClassShare.fileId
+          };
+        }
+      }
+    } catch (e) {
+      // Log but don't fail the request
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[Permission] ClassShare check error:', e.message);
       }
     }
   }

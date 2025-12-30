@@ -89,16 +89,11 @@ const fileSchema = new mongoose.Schema({
      */
     lastAccessedAt: {
       type: Date,
-    },
-	sharedWithClass: { // For sharing with an entire class dynamically
-	// This is not an unbounded array. It's a small, fixed-size object 
-		subject: { 
-			type: mongoose.Schema.Types.ObjectId, ref: 'Subject' 
-		},
-		batch: { type: Number },
-		semester: { type: Number },
-		section: { type: String }
-	}
+    }
+    
+    // NOTE: Class sharing moved to separate ClassShare collection
+    // See: /backend/src/models/classShareModel.js
+    // This provides better scalability for sharing with multiple classes
 }, { timestamps: true });
 
 // --- NEW: Index for Unique Naming ---

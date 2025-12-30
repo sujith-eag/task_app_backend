@@ -1,5 +1,6 @@
 import File from '../../../models/fileModel.js';
 import FileShare from '../../../models/fileshareModel.js';
+import ClassShare from '../../../models/classShareModel.js';
 import { uploadFile as uploadToS3 } from '../../../services/s3/s3.service.js';
 import { getDownloadUrl, getPreviewUrl } from '../../../services/s3/s3.service.js';
 import * as pathService from './path.service.js';
@@ -65,15 +66,23 @@ const userHasAccessTo = async (item, userId, user = null) => {
     // ignore logging errors
   }
 
-  // Class-share check when user is a student and item.sharedWithClass present
+  // Class-share check when user is a student (using ClassShare collection)
   if (user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    const swc = item.sharedWithClass;
-    if (swc && typeof swc === 'object') {
-      if (
-        swc.batch === user.studentDetails.batch &&
-        swc.section === user.studentDetails.section &&
-        swc.semester === user.studentDetails.semester
-      ) return true;
+    try {
+      const classShare = await ClassShare.exists({
+        fileId: item._id,
+        batch: user.studentDetails.batch,
+        semester: user.studentDetails.semester,
+        section: user.studentDetails.section,
+        $or: [
+          { expiresAt: null },
+          { expiresAt: { $gt: new Date() } }
+        ]
+      });
+
+      if (classShare) return true;
+    } catch (e) {
+      // Continue to return false
     }
   }
 
@@ -520,6 +529,7 @@ export const getFilePreviewUrlService = async (fileId, userId, user = null) => {
 
 /**
  * Search files (text search on fileName). Honors ownership, direct share and optional class-share when `user` provided.
+ * Uses ClassShare collection to find files shared with student's class
  */
 export const searchFilesService = async (userId, user, q) => {
   if (!q || typeof q !== 'string' || q.trim() === '') return [];
@@ -528,19 +538,25 @@ export const searchFilesService = async (userId, user, q) => {
   // Use FileShare to find file IDs shared with the user
   const sharedFileIds = await FileShare.find({ userId }).distinct('fileId');
 
+  // Use ClassShare to find files shared with student's class
+  let classSharedFileIds = [];
+  if (Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
+    classSharedFileIds = await ClassShare.find({
+      batch: user.studentDetails.batch,
+      semester: user.studentDetails.semester,
+      section: user.studentDetails.section,
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: new Date() } }
+      ]
+    }).distinct('fileId');
+  }
+
   const baseOr = [
     { user: userId },
   ];
   if (sharedFileIds && sharedFileIds.length > 0) baseOr.push({ _id: { $in: sharedFileIds } });
-
-  // Class-share clause when user is student
-  if (Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-    baseOr.push({
-      'sharedWithClass.batch': user.studentDetails.batch,
-      'sharedWithClass.section': user.studentDetails.section,
-      'sharedWithClass.semester': user.studentDetails.semester,
-    });
-  }
+  if (classSharedFileIds && classSharedFileIds.length > 0) baseOr.push({ _id: { $in: classSharedFileIds } });
 
   const query = {
     $text: { $search: searchText },
