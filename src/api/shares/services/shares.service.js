@@ -403,10 +403,19 @@ export const shareFileWithClassService = async (
     throw error;
   }
 
-  // 4. Verify user is a teacher
-  const teacher = await User.findById(userId);
-  if (!teacher || !Array.isArray(teacher.roles) || !teacher.roles.includes('teacher')) {
-    const error = new Error('Only teachers can share files with classes.');
+  // 4. Verify user is a teacher or admin
+  const user = await User.findById(userId);
+  if (!user || !Array.isArray(user.roles)) {
+    const error = new Error('User not found or has invalid roles.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const isTeacher = user.roles.includes('teacher');
+  const isAdmin = user.roles.includes('admin');
+
+  if (!isTeacher && !isAdmin) {
+    const error = new Error('Only teachers and admins can share files with classes.');
     error.statusCode = 403;
     throw error;
   }
@@ -425,21 +434,23 @@ export const shareFileWithClassService = async (
       throw error;
     }
 
-    // Verify teacher is assigned to teach this subject
-    const isAssigned = teacher.teacherDetails?.assignments?.some(
-      assignment =>
-        String(assignment.subject) === String(subjectId) &&
-        assignment.batch === batch &&
-        assignment.semester === semester &&
-        assignment.sections.includes(section)
-    );
-
-    if (!isAssigned) {
-      const error = new Error(
-        `You are not assigned to teach this subject for Batch ${batch}, Semester ${semester}, Section ${section}.`
+    // Verify teacher is assigned to teach this subject (skip for admins)
+    if (isTeacher && !isAdmin) {
+      const isAssigned = user.teacherDetails?.assignments?.some(
+        assignment =>
+          String(assignment.subject) === String(subjectId) &&
+          assignment.batch === batch &&
+          assignment.semester === semester &&
+          assignment.sections.includes(section)
       );
-      error.statusCode = 403;
-      throw error;
+
+      if (!isAssigned) {
+        const error = new Error(
+          `You are not assigned to teach this subject for Batch ${batch}, Semester ${semester}, Section ${section}.`
+        );
+        error.statusCode = 403;
+        throw error;
+      }
     }
 
     subjectIds.add(String(subjectId));
@@ -449,7 +460,9 @@ export const shareFileWithClassService = async (
   // 6. Verify all subjects exist
   const subjects = await Subject.find({ _id: { $in: Array.from(subjectIds) } });
   if (subjects.length !== subjectIds.size) {
-    const error = new Error('One or more subjects not found.');
+    const foundIds = new Set(subjects.map(s => String(s._id)));
+    const missingIds = Array.from(subjectIds).filter(id => !foundIds.has(id));
+    const error = new Error(`Subjects not found: ${missingIds.join(', ')}`);
     error.statusCode = 404;
     throw error;
   }

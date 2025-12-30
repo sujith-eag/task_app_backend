@@ -3,6 +3,7 @@ import FileShare from '../../../models/fileshareModel.js';
 import ClassShare from '../../../models/classShareModel.js';
 import mongoose from 'mongoose';
 import * as pathService from './path.service.js';
+import * as permissionService from './permission.service.js';
 
 // ============================================================================
 // Folder Creation Service
@@ -283,65 +284,20 @@ export const moveItemService = async (itemId, userId, newParentId) => {
  * @returns {Promise<Object>} Folder details with stats
  */
 export const getFolderDetailsService = async (folderId, userId, user = null) => {
-  // Fetch folder without owner filter; we'll enforce permission checks below
-  const folder = await File.findOne({ _id: folderId, isFolder: true, isDeleted: false }).populate('user', 'name avatar');
-
-  if (!folder) {
-    throw new Error('Folder not found.');
+  // Use centralized permission check instead of custom logic
+  const accessCheck = await permissionService.checkReadAccess(folderId, userId, user);
+  
+  if (!accessCheck.hasAccess) {
+    const error = new Error('You do not have permission to view this folder.');
+    error.statusCode = 403;
+    throw error;
   }
 
-  // Permission: allow owner, direct share (including ancestor shares), or class share
-  const normalizedUserId = String(userId);
-  const ownerId = folder.user ? String(folder.user) : null;
-  if (ownerId !== normalizedUserId) {
-    // Check direct share on folder or ancestor
-    const ancestorIds = folder.path ? pathService.extractAncestorIds(folder.path) : [];
-    const idsToCheck = [String(folder._id), ...ancestorIds];
-    let shared = false;
-    try {
-      // Convert ids to ObjectId where possible to ensure matching in DB
-      const objectIds = idsToCheck
-        .filter(Boolean)
-        .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id));
-      // Also convert userId to ObjectId for proper matching
-      const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
-      const FileShare = (await import('../../../models/fileshareModel.js')).default;
-      const fs = await FileShare.findOne({ fileId: { $in: objectIds }, userId: userObjectId });
-      if (fs && (!fs.expiresAt || fs.expiresAt > new Date())) shared = true;
-      // debug
-      if (process.env.NODE_ENV !== 'production') {
-        // eslint-disable-next-line no-console
-        console.debug('folder.getFolderDetailsService share-check', { folderId, idsToCheck, objectIds, shared, fsFound: !!fs, fsExpiresAt: fs?.expiresAt || null });
-      }
-    } catch (e) {
-      shared = false;
-    }
+  const folder = accessCheck.file;
 
-    let classShared = false;
-    // If not owner and not direct/shared via FileShare, evaluate class share if user provided
-    if (!shared && user && Array.isArray(user.roles) && user.roles.includes('student') && user.studentDetails) {
-      try {
-        const classShare = await ClassShare.exists({
-          fileId: folderId,
-          batch: user.studentDetails.batch,
-          semester: user.studentDetails.semester,
-          section: user.studentDetails.section,
-          $or: [
-            { expiresAt: null },
-            { expiresAt: { $gt: new Date() } }
-          ]
-        });
-        classShared = !!classShare;
-      } catch (e) {
-        classShared = false;
-      }
-    }
-
-    if (!shared && !classShared) {
-      const error = new Error('You do not have permission to view this folder.');
-      error.statusCode = 403;
-      throw error;
-    }
+  // Ensure it's actually a folder
+  if (!folder.isFolder) {
+    throw new Error('Item is not a folder.');
   }
 
   // Get statistics

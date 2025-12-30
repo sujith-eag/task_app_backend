@@ -178,8 +178,14 @@ export const validate = (schema, source = 'body') => {
       return res.status(400).json({ message: errorMessage });
     }
 
-    // Replace req[source] with validated and sanitized value
-    req[source] = value;
+    // Only replace req.body (req.query and req.params are read-only in newer Express)
+    // The validation already succeeded, so we just use the original values
+    if (source === 'body') {
+      req[source] = value;
+    }
+    // For query and params, validation passes but we don't reassign
+    // The original req.query and req.params already have the correct values
+    
     next();
   };
 };

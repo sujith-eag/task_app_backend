@@ -2,7 +2,7 @@ import express from 'express';
 
 import { protect } from '../_common/middleware/auth.middleware.js';
 
-import { isTeacher } from '../_common/middleware/rbac.middleware.js';
+import { hasRole } from '../_common/middleware/rbac.middleware.js';
 import {
     getClassCreationData,
     createClassSession,
@@ -15,11 +15,11 @@ import {
 
 const router = express.Router();
 
-// Apply protect and isTeacher middleware to all routes in this file
-router.use(protect, isTeacher);
+// Allow teachers and admins to access class creation data (for sharing materials)
+router.get('/class-creation-data', protect, hasRole(['teacher', 'admin']), getClassCreationData);
 
-// Routes
-router.get('/class-creation-data', getClassCreationData);
+// Apply protect and teacher-only middleware to remaining routes
+router.use(protect, hasRole(['teacher']));
 router.post('/class-sessions', createClassSession);
 router.get('/class-sessions', getTeacherSessionsHistory);
 

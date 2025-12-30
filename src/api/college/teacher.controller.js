@@ -36,22 +36,50 @@ const reflectionSchema = Joi.object({
 });
 
 
-// @desc    Get data needed for the class creation form (teacher's subjects)
-// @route   GET /api/teacher/class-creation-data
-// @access  Private/Teacher
+/**
+ * Get teacher's class creation data (assigned subjects)
+ * Also allows admins to get all subjects for sharing purposes
+ * @desc    Get data needed for the class creation form (teacher's subjects)
+ * @route GET /api/college/teachers/class-creation-data
+ * @access Private (Teacher or Admin)
+ */
 export const getClassCreationData = asyncHandler(async (req, res) => {
-    const teacher = await User.findById(req.user.id).populate({
+    const user = await User.findById(req.user.id).populate({
         path: 'teacherDetails.assignments.subject',
         select: 'name subjectCode semester'
     });
 
-    if (!teacher || !teacher.teacherDetails) {
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found.');
+    }
+
+    // For admins, return all subjects (they can share with any class)
+    if (user.roles.includes('admin')) {
+        const Subject = (await import('../../models/subjectModel.js')).default;
+        const allSubjects = await Subject.find({}).select('name subjectCode semester');
+        
+        // Transform subjects into assignment-like structure for consistency
+        const assignments = allSubjects.map(subject => ({
+            subject: {
+                _id: subject._id,
+                name: subject.name,
+                subjectCode: subject.subjectCode,
+                semester: subject.semester
+            }
+        }));
+
+        return res.status(200).json({ assignments });
+    }
+
+    // For teachers, return their assignments
+    if (!user.teacherDetails) {
         res.status(404);
         throw new Error('Teacher profile not found.');
     }
 
     res.status(200).json({
-        assignments: teacher.teacherDetails.assignments,
+        assignments: user.teacherDetails.assignments,
     });
 });
 

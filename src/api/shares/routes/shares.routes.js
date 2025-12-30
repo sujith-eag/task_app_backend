@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect } from '../../_common/middleware/auth.middleware.js';
-import { isTeacher, isStudent } from '../../_common/middleware/rbac.middleware.js';
+import { isTeacher, isStudent, hasRole } from '../../_common/middleware/rbac.middleware.js';
 import {
   createPublicShare,
   revokePublicShare,
@@ -120,7 +120,7 @@ router.post(
 router.post(
   '/:fileId/class',
   protect,
-  isTeacher, // Only teachers can share with classes
+  hasRole(['teacher', 'admin']), // Teachers and admins can share with classes
   loadFile,
   canShareFile,
   validate(shareWithClassSchema, 'body'),
@@ -129,12 +129,12 @@ router.post(
 
 /**
  * GET /api/shares/:fileId/class
- * Get all class shares for a file (teacher view)
+ * Get all class shares for a file (teacher/admin view)
  */
 router.get(
   '/:fileId/class',
   protect,
-  isTeacher,
+  hasRole(['teacher', 'admin']),
   loadFile,
   isFileOwner,
   getFileClassShares
@@ -148,7 +148,7 @@ router.get(
 router.delete(
   '/:fileId/class',
   protect,
-  isTeacher,
+  hasRole(['teacher', 'admin']),
   loadFile,
   isFileOwner,
   validate(removeClassShareSchema, 'body'),
@@ -176,7 +176,7 @@ router.get(
 router.patch(
   '/class/:shareId/expiration',
   protect,
-  isTeacher,
+  hasRole(['teacher', 'admin']),
   validate(updateClassShareExpirationSchema, 'body'),
   updateClassShareExpiration
 );
