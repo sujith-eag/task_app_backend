@@ -52,6 +52,9 @@ import aiRoutes from '../api/ai/routes/ai.routes.js';
 // Admin module (refactored - Phase 0)
 import adminRoutes from '../api/admin/routes/admin.routes.js';
 
+// OAuth/OIDC module (Phase 1 - OAuth IdP)
+import oauthRoutes from '../api/oauth/routes.js';
+
 // Example future refactorings:
 // import academicsRoutes from '../api/academics/routes/materials.routes.js';
 // import assignmentsRoutes from '../api/assignments/routes/assignments.routes.js';
@@ -107,6 +110,10 @@ export const mountRoutes = (app) => {
     // Tasks module (refactored) ✅
     app.use('/api/tasks', tasksRoutes);        // Task management
     
+    // OAuth/OIDC module ✅
+    app.use('/api', oauthRoutes);              // OAuth 2.1/OIDC Identity Provider
+                                                // Mounts: /.well-known/*, /oauth/*
+
     // Mount additional refactored domain routes here as we create them
     // Example:
     // app.use('/api/academics', academicsRoutes);
