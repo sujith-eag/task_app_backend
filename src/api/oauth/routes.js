@@ -73,18 +73,8 @@ import {
 import { rateLimit } from './middleware/index.js';
 
 // Import auth middleware (from existing auth system)
-// This will be replaced with proper import once we verify the path
-const requireAuth = (req, res, next) => {
-  // Placeholder - will be replaced with actual auth middleware
-  // The actual implementation should verify the user's session/JWT
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'login_required',
-      error_description: 'User authentication required'
-    });
-  }
-  next();
-};
+import { protect } from '../_common/middleware/auth.middleware.js';
+import { hasRole } from '../_common/middleware/rbac.middleware.js';
 
 // ============================================================================
 // Router Setup
@@ -129,7 +119,7 @@ router.get('/.well-known/jwks.json', getJWKS);
  */
 router.get(
   '/oauth/authorize',
-  requireAuth,
+  protect,
   validateAuthorizeRequest,
   authorize
 );
@@ -140,7 +130,7 @@ router.get(
  */
 router.get(
   '/oauth/authorize/validate',
-  requireAuth,
+  protect,
   validateAuthRequestController
 );
 
@@ -150,7 +140,7 @@ router.get(
  */
 router.post(
   '/oauth/authorize/consent',
-  requireAuth,
+  protect,
   validateConsentApproval,
   approveConsent
 );
@@ -161,7 +151,7 @@ router.post(
  */
 router.post(
   '/oauth/authorize/deny',
-  requireAuth,
+  protect,
   denyConsent
 );
 
@@ -239,7 +229,7 @@ router.post('/oauth/userinfo', userinfo);
  */
 router.get(
   '/oauth/user/authorizations',
-  requireAuth,
+  protect,
   listUserAuthorizations
 );
 
@@ -249,7 +239,7 @@ router.get(
  */
 router.delete(
   '/oauth/user/authorizations/:clientId',
-  requireAuth,
+  protect,
   revokeUserAuthorization
 );
 
@@ -263,7 +253,7 @@ router.delete(
  */
 router.post(
   '/oauth/clients',
-  requireAuth,
+  protect,
   rateLimit({ max: 10, windowMs: 60 * 60 * 1000 }), // 10 per hour
   validateClientRegistration,
   registerClient
@@ -274,7 +264,7 @@ router.post(
  */
 router.get(
   '/oauth/clients',
-  requireAuth,
+  protect,
   listOwnClients
 );
 
@@ -291,7 +281,7 @@ router.get(
  */
 router.get(
   '/oauth/clients/:clientId',
-  requireAuth,
+  protect,
   getClientById
 );
 
@@ -300,7 +290,7 @@ router.get(
  */
 router.patch(
   '/oauth/clients/:clientId',
-  requireAuth,
+  protect,
   updateClientById
 );
 
@@ -309,7 +299,7 @@ router.patch(
  */
 router.delete(
   '/oauth/clients/:clientId',
-  requireAuth,
+  protect,
   deleteClientById
 );
 
@@ -318,7 +308,7 @@ router.delete(
  */
 router.post(
   '/oauth/clients/:clientId/rotate-secret',
-  requireAuth,
+  protect,
   rotateSecret
 );
 
@@ -327,33 +317,11 @@ router.post(
 // ============================================================================
 
 /**
- * Admin auth middleware placeholder
- * Replace with actual admin auth middleware
- */
-const requireAdmin = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'unauthorized',
-      error_description: 'Authentication required'
-    });
-  }
-  
-  if (!req.user.roles?.includes('admin')) {
-    return res.status(403).json({
-      error: 'forbidden',
-      error_description: 'Admin access required'
-    });
-  }
-  
-  next();
-};
-
-/**
  * Get OAuth statistics (admin)
  */
 router.get(
   '/oauth/admin/clients/stats',
-  requireAdmin,
+  protect, hasRole(['admin']),
   getOAuthStats
 );
 
@@ -362,7 +330,7 @@ router.get(
  */
 router.get(
   '/oauth/admin/clients/pending',
-  requireAdmin,
+  protect, hasRole(['admin']),
   listPendingClients
 );
 
@@ -371,7 +339,7 @@ router.get(
  */
 router.post(
   '/oauth/admin/clients/:clientId/approve',
-  requireAdmin,
+  protect, hasRole(['admin']),
   approveClientById
 );
 
@@ -380,7 +348,7 @@ router.post(
  */
 router.post(
   '/oauth/admin/clients/:clientId/reject',
-  requireAdmin,
+  protect, hasRole(['admin']),
   rejectClientById
 );
 
@@ -389,7 +357,7 @@ router.post(
  */
 router.post(
   '/oauth/admin/clients/:clientId/suspend',
-  requireAdmin,
+  protect, hasRole(['admin']),
   suspendClientById
 );
 
@@ -398,7 +366,7 @@ router.post(
  */
 router.post(
   '/oauth/admin/clients/:clientId/reactivate',
-  requireAdmin,
+  protect, hasRole(['admin']),
   reactivateClientById
 );
 

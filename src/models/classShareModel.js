@@ -66,8 +66,7 @@ const classShareSchema = new mongoose.Schema(
     // Optional expiration
     expiresAt: {
       type: Date,
-      default: null,
-      index: true
+      default: null
     },
 
     // Optional description/note for the share
